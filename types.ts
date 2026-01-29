@@ -1,9 +1,17 @@
-export type Screen = 'menu' | 'shop' | 'options' | 'credits' | 'ship-select' | 'game' | 'game-over';
+export type Screen = 'menu' | 'shop' | 'options' | 'credits' | 'ship-select' | 'game' | 'game-over' | 'leaderboard';
 
 export interface PlayerData {
+  username?: string; // Nome do jogador
   scrap: number;
   highScore: number;
-  inventory: string[]; // IDs of purchased upgrades
+  inventory: string[]; // IDs dos upgrades comprados
+}
+
+export interface Profile {
+  id: string;
+  username?: string; // Nome do jogador no banco
+  high_score: number;
+  scrap: number;
 }
 
 export interface ShipConfig {

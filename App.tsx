@@ -7,18 +7,35 @@ import { Shop } from './components/Shop';
 import { ShipSelector } from './components/ShipSelector';
 import { GameEngine } from './components/GameEngine';
 import { GameOver } from './components/GameOver';
+import { Leaderboard } from './components/Leaderboard';
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('menu');
-  const [playerData, setPlayerData] = useState<PlayerData>({ scrap: 0, highScore: 0, inventory: [] });
+  const [playerData, setPlayerData] = useState<PlayerData>({ username: 'ROOKIE', scrap: 0, highScore: 0, inventory: [] });
   const [selectedShip, setSelectedShip] = useState<ShipConfig>(SHIPS[0]);
   const [lastGameResult, setLastGameResult] = useState<GameResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isOnline, setIsOnline] = useState(false);
 
-  // Load data on mount
+  // Carrega os dados ao iniciar
   useEffect(() => {
-    getPlayerData().then(setPlayerData);
+    const init = async () => {
+      const { data, isOnline } = await getPlayerData();
+      setPlayerData(data);
+      setIsOnline(isOnline);
+      setLoading(false);
+    };
+    init();
   }, []);
 
+  // Atualiza o nome do jogador
+  const handleUpdateName = (newName: string) => {
+    const newData = { ...playerData, username: newName };
+    setPlayerData(newData);
+    savePlayerData(newData);
+  };
+
+  // Compra upgrades
   const handleBuyUpgrade = (upgrade: Upgrade) => {
     if (playerData.scrap >= upgrade.cost && !playerData.inventory.includes(upgrade.id)) {
       const newData = {
@@ -31,9 +48,10 @@ export default function App() {
     }
   };
 
+  // Fim de jogo
   const handleGameOver = (result: GameResult) => {
     setLastGameResult(result);
-    // Update player data
+    // Atualiza dados do jogador (dinheiro e recorde)
     const newData = {
       ...playerData,
       scrap: playerData.scrap + result.scrapCollected,
@@ -49,10 +67,25 @@ export default function App() {
     setScreen('game');
   };
 
+  if (loading) {
+    return (
+      <div className="w-full h-screen bg-black flex items-center justify-center text-neon-cyan font-display animate-pulse">
+        CONNECTING...
+      </div>
+    );
+  }
+
   const renderScreen = () => {
     switch(screen) {
       case 'menu':
-        return <MainMenu setScreen={setScreen} />;
+        return (
+          <MainMenu 
+            setScreen={setScreen} 
+            isOnline={isOnline} 
+            playerData={playerData}
+            onNameChange={handleUpdateName}
+          />
+        );
       
       case 'shop':
         return (
@@ -69,6 +102,11 @@ export default function App() {
             onSelect={handleLaunch} 
             goBack={() => setScreen('menu')} 
           />
+        );
+      
+      case 'leaderboard':
+        return (
+          <Leaderboard goBack={() => setScreen('menu')} />
         );
       
       case 'game':
@@ -133,7 +171,7 @@ export default function App() {
         )
       
       default:
-        return <MainMenu setScreen={setScreen} />;
+        return <MainMenu setScreen={setScreen} isOnline={isOnline} playerData={playerData} onNameChange={handleUpdateName} />;
     }
   };
 
