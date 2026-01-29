@@ -40,6 +40,16 @@ interface LoadResult {
 }
 
 export const getPlayerData = async (): Promise<LoadResult> => {
+  const defaultData: PlayerData = { 
+    username: 'ROOKIE', 
+    scrap: 0, 
+    highScore: 0, 
+    inventory: [],
+    level: 1,
+    currentXp: 0,
+    maxWave: 0
+  };
+
   // 1. Tentar carregar do Supabase (Online)
   if (supabase) {
     try {
@@ -48,18 +58,27 @@ export const getPlayerData = async (): Promise<LoadResult> => {
       if (user) {
         const { data, error } = await supabase
           .from('profiles')
-          .select('username, scrap, high_score, inventory')
+          .select('username, scrap, high_score, inventory, level, current_xp, max_wave')
           .eq('id', user.id)
           .single();
         
         // Se o perfil não existe (primeiro login do usuário), cria um
         if (error && error.code === 'PGRST116') {
-           const initialData = { id: user.id, username: 'ROOKIE', scrap: 0, high_score: 0, inventory: [] };
+           const initialData = { 
+             id: user.id, 
+             username: 'ROOKIE', 
+             scrap: 0, 
+             high_score: 0, 
+             inventory: [],
+             level: 1,
+             current_xp: 0,
+             max_wave: 0
+           };
            const { error: insertError } = await supabase.from('profiles').insert(initialData);
            
            if (!insertError) {
              return { 
-               data: { username: 'ROOKIE', scrap: 0, highScore: 0, inventory: [] },
+               data: defaultData,
                isOnline: true
              };
            }
@@ -71,7 +90,10 @@ export const getPlayerData = async (): Promise<LoadResult> => {
               username: data.username || `PILOT-${user.id.substring(0,4).toUpperCase()}`,
               scrap: data.scrap || 0,
               highScore: data.high_score || 0,
-              inventory: Array.isArray(data.inventory) ? data.inventory : []
+              inventory: Array.isArray(data.inventory) ? data.inventory : [],
+              level: data.level || 1,
+              currentXp: data.current_xp || 0,
+              maxWave: data.max_wave || 0
             },
             isOnline: true
           };
@@ -86,8 +108,9 @@ export const getPlayerData = async (): Promise<LoadResult> => {
   try {
     const localData = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (localData) {
+      const parsed = JSON.parse(localData);
       return { 
-        data: JSON.parse(localData),
+        data: { ...defaultData, ...parsed }, // Merge com default para garantir novos campos
         isOnline: false
       };
     }
@@ -97,7 +120,7 @@ export const getPlayerData = async (): Promise<LoadResult> => {
 
   // 3. Novo Jogador Padrão (Sem dados salvos)
   return { 
-    data: { username: 'ROOKIE', scrap: 0, highScore: 0, inventory: [] },
+    data: defaultData,
     isOnline: false
   };
 };
@@ -120,7 +143,10 @@ export const savePlayerData = async (data: PlayerData) => {
           username: data.username,
           scrap: data.scrap,
           high_score: data.highScore,
-          inventory: data.inventory
+          inventory: data.inventory,
+          level: data.level,
+          current_xp: data.currentXp,
+          max_wave: data.maxWave
         });
       }
     } catch (error) {
@@ -136,7 +162,7 @@ export const getLeaderboard = async (): Promise<Profile[]> => {
   try {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, username, high_score, scrap')
+      .select('id, username, high_score, scrap, level')
       .order('high_score', { ascending: false })
       .limit(10);
 

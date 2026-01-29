@@ -8,7 +8,8 @@ export const SHIPS: ShipConfig[] = [
     speed: 5,
     power: 1,
     health: 3,
-    description: 'Balanced stats. Reliable for any mission.'
+    description: 'Balanced stats. Reliable for any mission.',
+    unlockWave: 0
   },
   {
     id: 'phantom',
@@ -17,7 +18,8 @@ export const SHIPS: ShipConfig[] = [
     speed: 7,
     power: 0.8,
     health: 2,
-    description: 'High mobility but lower hull integrity.'
+    description: 'High mobility. Unlocked at Wave 10.',
+    unlockWave: 10
   },
   {
     id: 'striker',
@@ -26,7 +28,8 @@ export const SHIPS: ShipConfig[] = [
     speed: 4,
     power: 1.5,
     health: 4,
-    description: 'Heavy armor and firepower. Slow movement.'
+    description: 'Heavy firepower. Unlocked at Wave 20.',
+    unlockWave: 20
   }
 ];
 

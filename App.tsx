@@ -8,10 +8,19 @@ import { ShipSelector } from './components/ShipSelector';
 import { GameEngine } from './components/GameEngine';
 import { GameOver } from './components/GameOver';
 import { Leaderboard } from './components/Leaderboard';
+import { sfx } from './audioService';
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('menu');
-  const [playerData, setPlayerData] = useState<PlayerData>({ username: 'ROOKIE', scrap: 0, highScore: 0, inventory: [] });
+  const [playerData, setPlayerData] = useState<PlayerData>({ 
+    username: 'ROOKIE', 
+    scrap: 0, 
+    highScore: 0, 
+    inventory: [],
+    level: 1,
+    currentXp: 0,
+    maxWave: 0
+  });
   const [selectedShip, setSelectedShip] = useState<ShipConfig>(SHIPS[0]);
   const [lastGameResult, setLastGameResult] = useState<GameResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,12 +60,30 @@ export default function App() {
   // Fim de jogo
   const handleGameOver = (result: GameResult) => {
     setLastGameResult(result);
-    // Atualiza dados do jogador (dinheiro e recorde)
+    
+    // XP Logic
+    let newLevel = playerData.level;
+    let newXp = playerData.currentXp + result.xpGained;
+    let xpToNext = newLevel * 100;
+
+    // Simple Level Up Loop
+    while (newXp >= xpToNext) {
+        newXp -= xpToNext;
+        newLevel++;
+        xpToNext = newLevel * 100;
+        sfx.collect(); // Sound for level up
+    }
+
+    // Atualiza dados do jogador (dinheiro, recorde, xp, level, max wave)
     const newData = {
       ...playerData,
       scrap: playerData.scrap + result.scrapCollected,
-      highScore: Math.max(playerData.highScore, result.score)
+      highScore: Math.max(playerData.highScore, result.score),
+      level: newLevel,
+      currentXp: newXp,
+      maxWave: Math.max(playerData.maxWave, result.survivedWaves)
     };
+    
     setPlayerData(newData);
     savePlayerData(newData);
     setScreen('game-over');
@@ -101,6 +128,7 @@ export default function App() {
           <ShipSelector 
             onSelect={handleLaunch} 
             goBack={() => setScreen('menu')} 
+            playerData={playerData}
           />
         );
       
