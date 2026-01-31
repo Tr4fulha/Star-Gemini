@@ -1,211 +1,66 @@
-import React, { useState, useEffect } from 'react';
-import { Screen, PlayerData, ShipConfig, Upgrade, GameResult } from './types';
-import { SHIPS } from './constants';
-import { getPlayerData, savePlayerData } from './supabaseService';
+
+import React from 'react';
+import { GameProvider, useGame } from './context/GameContext';
 import { MainMenu } from './components/MainMenu';
 import { Shop } from './components/Shop';
 import { ShipSelector } from './components/ShipSelector';
 import { GameEngine } from './components/GameEngine';
 import { GameOver } from './components/GameOver';
 import { Leaderboard } from './components/Leaderboard';
-import { sfx } from './audioService';
+import { Options } from './components/Options';
+import { Splash } from './components/Splash';
+import { Changelog } from './components/Changelog';
+import { HUDEditor } from './components/HUDEditor';
+import { Tutorial } from './components/Tutorial';
+import { NameInput } from './components/NameInput';
+
+const GameLayout = () => {
+  const { screen, loading } = useGame();
+
+  if (loading) return (
+    <div className="w-full h-screen bg-black flex items-center justify-center text-neon-cyan font-display animate-pulse uppercase tracking-[0.5em]">
+      Syncing...
+    </div>
+  );
+
+  switch(screen) {
+      case 'splash': return <Splash />;
+      case 'name-input': return <NameInput />;
+      case 'tutorial': return <Tutorial />;
+      case 'changelog': return <Changelog />;
+      case 'menu': return <MainMenu />;
+      case 'shop': return <Shop />;
+      case 'ship-select': return <ShipSelector />;
+      case 'leaderboard': return <Leaderboard />;
+      case 'game': return <GameEngine />;
+      case 'game-over': return <GameOver />;
+      case 'options': return <Options />;
+      case 'hud-editor': return <HUDEditor />;
+      case 'credits': return (
+          <div className="flex flex-col items-center justify-center h-full text-center p-8 space-y-12">
+             <h2 className="text-4xl text-neon-cyan font-black italic font-display">CREDITS</h2>
+             <div><h3 className="text-white font-bold text-xl mb-1 uppercase tracking-widest">TR4FULHA</h3><p className="text-gray-500 text-sm">Design & Core Engineering</p></div>
+             <div><h3 className="text-white font-bold text-xl mb-1 uppercase tracking-widest">SYNTH WAVE ENGINE</h3><p className="text-gray-500 text-sm">Dynamic Audio Processing</p></div>
+             <BackButton />
+          </div>
+        );
+      default: return <MainMenu />;
+  }
+};
+
+const BackButton = () => {
+    const { goToMenu } = useGame();
+    return (
+        <button onClick={goToMenu} className="text-gray-500 hover:text-white font-bold text-sm mt-8 uppercase tracking-widest">BACK</button>
+    );
+}
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>('menu');
-  const [playerData, setPlayerData] = useState<PlayerData>({ 
-    username: 'ROOKIE', 
-    scrap: 0, 
-    highScore: 0, 
-    inventory: [],
-    level: 1,
-    currentXp: 0,
-    maxWave: 0
-  });
-  const [selectedShip, setSelectedShip] = useState<ShipConfig>(SHIPS[0]);
-  const [lastGameResult, setLastGameResult] = useState<GameResult | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isOnline, setIsOnline] = useState(false);
-
-  // Carrega os dados ao iniciar
-  useEffect(() => {
-    const init = async () => {
-      const { data, isOnline } = await getPlayerData();
-      setPlayerData(data);
-      setIsOnline(isOnline);
-      setLoading(false);
-    };
-    init();
-  }, []);
-
-  // Atualiza o nome do jogador
-  const handleUpdateName = (newName: string) => {
-    const newData = { ...playerData, username: newName };
-    setPlayerData(newData);
-    savePlayerData(newData);
-  };
-
-  // Compra upgrades
-  const handleBuyUpgrade = (upgrade: Upgrade) => {
-    if (playerData.scrap >= upgrade.cost && !playerData.inventory.includes(upgrade.id)) {
-      const newData = {
-        ...playerData,
-        scrap: playerData.scrap - upgrade.cost,
-        inventory: [...playerData.inventory, upgrade.id]
-      };
-      setPlayerData(newData);
-      savePlayerData(newData);
-    }
-  };
-
-  // Fim de jogo
-  const handleGameOver = (result: GameResult) => {
-    setLastGameResult(result);
-    
-    // XP Logic
-    let newLevel = playerData.level;
-    let newXp = playerData.currentXp + result.xpGained;
-    let xpToNext = newLevel * 100;
-
-    // Simple Level Up Loop
-    while (newXp >= xpToNext) {
-        newXp -= xpToNext;
-        newLevel++;
-        xpToNext = newLevel * 100;
-        sfx.collect(); // Sound for level up
-    }
-
-    // Atualiza dados do jogador (dinheiro, recorde, xp, level, max wave)
-    const newData = {
-      ...playerData,
-      scrap: playerData.scrap + result.scrapCollected,
-      highScore: Math.max(playerData.highScore, result.score),
-      level: newLevel,
-      currentXp: newXp,
-      maxWave: Math.max(playerData.maxWave, result.survivedWaves)
-    };
-    
-    setPlayerData(newData);
-    savePlayerData(newData);
-    setScreen('game-over');
-  };
-
-  const handleLaunch = (ship: ShipConfig) => {
-    setSelectedShip(ship);
-    setScreen('game');
-  };
-
-  if (loading) {
-    return (
-      <div className="w-full h-screen bg-black flex items-center justify-center text-neon-cyan font-display animate-pulse">
-        CONNECTING...
-      </div>
-    );
-  }
-
-  const renderScreen = () => {
-    switch(screen) {
-      case 'menu':
-        return (
-          <MainMenu 
-            setScreen={setScreen} 
-            isOnline={isOnline} 
-            playerData={playerData}
-            onNameChange={handleUpdateName}
-          />
-        );
-      
-      case 'shop':
-        return (
-          <Shop 
-            playerData={playerData} 
-            buyUpgrade={handleBuyUpgrade} 
-            goBack={() => setScreen('menu')} 
-          />
-        );
-      
-      case 'ship-select':
-        return (
-          <ShipSelector 
-            onSelect={handleLaunch} 
-            goBack={() => setScreen('menu')} 
-            playerData={playerData}
-          />
-        );
-      
-      case 'leaderboard':
-        return (
-          <Leaderboard goBack={() => setScreen('menu')} />
-        );
-      
-      case 'game':
-        return (
-          <GameEngine 
-            ship={selectedShip} 
-            inventory={playerData.inventory}
-            onGameOver={handleGameOver} 
-          />
-        );
-
-      case 'game-over':
-        return (
-          <GameOver 
-            result={lastGameResult!} 
-            onRetry={() => setScreen('ship-select')} 
-            onMenu={() => setScreen('menu')} 
-          />
-        );
-
-      case 'options':
-        return (
-           <div className="flex flex-col items-center justify-center h-full max-w-lg mx-auto p-8">
-              <h2 className="text-4xl text-neon-cyan font-black italic font-display mb-12">OPÇÕES</h2>
-              
-              <div className="w-full space-y-8 mb-12">
-                <div className="space-y-2">
-                  <label className="text-gray-400 text-xs font-bold uppercase">Master Volume</label>
-                  <input type="range" className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-neon-cyan" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-gray-400 text-xs font-bold uppercase">Music Volume</label>
-                  <input type="range" className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-neon-cyan" defaultValue="60"/>
-                </div>
-                 <div className="space-y-2">
-                  <label className="text-gray-400 text-xs font-bold uppercase">Language</label>
-                  <div className="w-full border border-gray-700 p-3 text-center text-white font-display">PORTUGUÊS</div>
-                </div>
-              </div>
-
-              <button onClick={() => setScreen('menu')} className="text-gray-500 hover:text-white font-bold text-sm">VOLTAR</button>
-           </div>
-        );
-
-      case 'credits':
-        return (
-          <div className="flex flex-col items-center justify-center h-full text-center p-8 space-y-12">
-             <h2 className="text-4xl text-neon-cyan font-black italic font-display">CRÉDITOS</h2>
-             
-             <div>
-               <h3 className="text-white font-bold text-xl mb-1">TR4FULHA TEAM</h3>
-               <p className="text-gray-500 text-sm">Development & Design</p>
-             </div>
-
-             <div>
-               <h3 className="text-white font-bold text-xl mb-1">MUSIC & SFX</h3>
-               <p className="text-gray-500 text-sm">Generated / Retro Synthesis</p>
-             </div>
-
-             <button onClick={() => setScreen('menu')} className="text-gray-500 hover:text-white font-bold text-sm mt-8">VOLTAR</button>
-          </div>
-        )
-      
-      default:
-        return <MainMenu setScreen={setScreen} isOnline={isOnline} playerData={playerData} onNameChange={handleUpdateName} />;
-    }
-  };
-
   return (
     <div className="w-full h-screen bg-black text-white overflow-hidden font-sans select-none">
-      {renderScreen()}
+      <GameProvider>
+        <GameLayout />
+      </GameProvider>
     </div>
   );
 }

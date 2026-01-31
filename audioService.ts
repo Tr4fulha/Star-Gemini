@@ -1,27 +1,151 @@
-// Simple Retro Synthesizer using Web Audio API
-// No assets required, generates sound on the fly
 
 let audioCtx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
+let musicGain: GainNode | null = null;
+let sfxGain: GainNode | null = null;
+
 let bgmInterval: number | null = null;
+let bgmSource: AudioBufferSourceNode | null = null;
+let currentTrackId: string | null = null; // Nova variável para rastrear a música atual
 let isMuted = false;
+
+// Volumes
+let volMaster = 0.5;
+let volMusic = 0.5;
+let volSfx = 0.5;
+
+let cachedNoiseBuffer: AudioBuffer | null = null;
+
+// --- ASSET MANAGER ---
+const buffers: Record<string, AudioBuffer> = {};
+let packLoaded = false; // Flag para UI
+
+// Mapa de Arquivos: Coloque seus arquivos em /public/sounds/
+const SOUND_FILES = {
+    'shoot': '/sounds/shoot.mp3',
+    'explosion': '/sounds/explosion.mp3',
+    'hit': '/sounds/hit.mp3',
+    'collect': '/sounds/collect.mp3',
+    'powerup': '/sounds/powerup.mp3',
+    'game_over': '/sounds/gameover.mp3',
+    'ultimate_use': '/sounds/ultimate.mp3',
+    'ui_click': '/sounds/click.mp3',
+    'bgm_game': '/sounds/music_game.mp3',
+    'bgm_menu': '/sounds/music_menu.mp3'
+};
 
 const initAudio = () => {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    
     masterGain = audioCtx.createGain();
-    masterGain.gain.value = 0.3; // Volume geral (30%)
+    masterGain.gain.value = volMaster;
     masterGain.connect(audioCtx.destination);
+    
+    musicGain = audioCtx.createGain();
+    musicGain.gain.value = volMusic;
+    musicGain.connect(masterGain);
+
+    sfxGain = audioCtx.createGain();
+    sfxGain.gain.value = volSfx;
+    sfxGain.connect(masterGain);
+
+    // Buffer de ruído para fallback
+    const bufferSize = audioCtx.sampleRate * 2.0; 
+    cachedNoiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = cachedNoiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+    }
   }
   if (audioCtx.state === 'suspended') {
     audioCtx.resume();
   }
 };
 
-const playTone = (freq: number, type: OscillatorType, duration: number, slideTo: number | null = null) => {
+// Carrega um único som
+const loadSound = async (key: string, url: string) => {
+    if (!audioCtx) initAudio();
+    if (!audioCtx) return;
+
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Network response was not ok');
+        const arrayBuffer = await response.arrayBuffer();
+        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+        buffers[key] = audioBuffer;
+        packLoaded = true; // Se carregou pelo menos um, consideramos ativo
+    } catch (error) {
+        // Silencioso: se falhar, usaremos o sintetizador
+    }
+};
+
+// Carrega todos os sons definidos
+export const loadAllSounds = async () => {
+    const promises = Object.entries(SOUND_FILES).map(([key, url]) => loadSound(key, url));
+    await Promise.all(promises);
+};
+
+const setMasterVolume = (val: number) => {
+    volMaster = Math.max(0, Math.min(1, val));
+    if (masterGain) masterGain.gain.setTargetAtTime(volMaster, audioCtx?.currentTime || 0, 0.1);
+}
+
+const setMusicVolume = (val: number) => {
+    volMusic = Math.max(0, Math.min(1, val));
+    if (musicGain) musicGain.gain.setTargetAtTime(volMusic, audioCtx?.currentTime || 0, 0.1);
+}
+
+const setSfxVolume = (val: number) => {
+    volSfx = Math.max(0, Math.min(1, val));
+    if (sfxGain) sfxGain.gain.setTargetAtTime(volSfx, audioCtx?.currentTime || 0, 0.1);
+}
+
+// Toca um buffer se existir
+const playBuffer = (key: string, vol: number = 1.0, loop: boolean = false): boolean => {
+    if (isMuted || !audioCtx || !sfxGain || !buffers[key]) return false;
+
+    // Se for loop (música)
+    if (loop) {
+        // CORREÇÃO: Se a música já está tocando, não reinicia
+        if (currentTrackId === key && bgmSource) {
+            return true;
+        }
+
+        // Se for uma música diferente, para a anterior
+        if (bgmSource) {
+             try { bgmSource.stop(); } catch(e) {}
+             bgmSource = null;
+        }
+    }
+
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffers[key];
+    source.loop = loop;
+
+    const gain = audioCtx.createGain();
+    gain.gain.value = vol;
+
+    source.connect(gain);
+    // Se for loop (música), conecta no musicGain, senão no sfxGain
+    gain.connect(loop ? musicGain! : sfxGain!);
+    
+    source.start();
+    
+    if (loop) {
+        bgmSource = source;
+        currentTrackId = key;
+    }
+
+    return true;
+};
+
+// --- SINTETIZADORES (FALLBACK) ---
+
+const playTone = (freq: number, type: OscillatorType, duration: number, slideTo: number | null = null, vol: number = 0.5) => {
   if (isMuted) return;
-  if (!audioCtx || !masterGain) initAudio();
-  if (!audioCtx || !masterGain) return;
+  if (!audioCtx || !sfxGain) initAudio();
+  if (!audioCtx || !sfxGain) return;
 
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
@@ -33,110 +157,170 @@ const playTone = (freq: number, type: OscillatorType, duration: number, slideTo:
     osc.frequency.exponentialRampToValueAtTime(slideTo, audioCtx.currentTime + duration);
   }
 
-  gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+  gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
 
   osc.connect(gain);
-  gain.connect(masterGain);
+  gain.connect(sfxGain);
 
   osc.start();
   osc.stop(audioCtx.currentTime + duration);
 };
 
-const playNoise = (duration: number) => {
+const playNoise = (duration: number, vol: number = 0.5) => {
     if (isMuted) return;
-    if (!audioCtx || !masterGain) initAudio();
-    if (!audioCtx || !masterGain) return;
-
-    const bufferSize = audioCtx.sampleRate * duration;
-    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-    const data = buffer.getChannelData(0);
-
-    for (let i = 0; i < bufferSize; i++) {
-        data[i] = Math.random() * 2 - 1;
-    }
+    if (!audioCtx || !sfxGain || !cachedNoiseBuffer) initAudio();
+    if (!audioCtx || !sfxGain || !cachedNoiseBuffer) return;
 
     const noise = audioCtx.createBufferSource();
-    noise.buffer = buffer;
+    noise.buffer = cachedNoiseBuffer;
 
     const noiseGain = audioCtx.createGain();
-    noiseGain.gain.setValueAtTime(0.5, audioCtx.currentTime);
-    noiseGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+    noiseGain.gain.setValueAtTime(vol, audioCtx.currentTime);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
 
     noise.connect(noiseGain);
-    noiseGain.connect(masterGain);
-    noise.start();
+    noiseGain.connect(sfxGain);
+    
+    noise.start(0, 0, duration);
 };
 
+// --- CONTROLES PÚBLICOS ---
+
 export const music = {
-  start: () => {
-    if (bgmInterval) return;
+  playGame: () => {
     initAudio();
     
+    // Para qualquer sintetizador rodando
+    if (bgmInterval) { clearInterval(bgmInterval); bgmInterval = null; }
+
+    // Tenta tocar arquivo de música do jogo
+    if (playBuffer('bgm_game', 0.8, true)) return;
+
+    // Fallback: Música Sintetizada (Apenas para o jogo)
+    
     let beat = 0;
-    // Simple Synthwave Loop (120 BPM approx)
     const playStep = () => {
-      if (!audioCtx || isMuted) return;
+      if (!audioCtx || !musicGain || isMuted) return;
       
       const t = audioCtx.currentTime;
       
-      // Kick (Every beat)
+      // Kick
       if (beat % 4 === 0) {
-        playTone(150, 'sine', 0.1, 50);
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        osc.frequency.setValueAtTime(120, t);
+        osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.1);
+        g.gain.setValueAtTime(0.6, t);
+        g.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+        osc.connect(g); g.connect(musicGain!);
+        osc.start(); osc.stop(t + 0.1);
       }
       
-      // Bassline (Rolling 8ths)
-      const bassNote = beat < 16 ? 65 : 43; // F2 -> F1
+      // Bass
+      const bassFreqs = [55, 55, 41, 41, 48, 48, 36, 36];
+      const freq = bassFreqs[Math.floor(beat/4) % bassFreqs.length];
       if (beat % 2 === 0) {
-        playTone(bassNote, 'sawtooth', 0.1);
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, t);
+        g.gain.setValueAtTime(0.15, t);
+        g.gain.exponentialRampToValueAtTime(0.01, t + 0.12);
+        osc.connect(g); g.connect(musicGain!);
+        osc.start(); osc.stop(t + 0.12);
+      }
+
+      // Snare
+      if (beat % 8 === 4 && cachedNoiseBuffer) {
+        const n = audioCtx.createBufferSource();
+        n.buffer = cachedNoiseBuffer;
+        const ng = audioCtx.createGain();
+        ng.gain.setValueAtTime(0.2, t);
+        ng.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+        n.connect(ng); ng.connect(musicGain!);
+        n.start(t, 0, 0.2);
       }
       
-      // Snare (Every other beat)
-      if (beat % 8 === 4) {
-        playNoise(0.15);
-      }
-      
-      // Hi-hat (16ths)
-      if (beat % 2 !== 0) {
-        playNoise(0.05);
+      // Melody
+      if (beat % 4 === 2) {
+        const melody = [440, 523, 659, 783];
+        const mFreq = melody[Math.floor(beat/8) % melody.length];
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(mFreq, t);
+        osc.frequency.exponentialRampToValueAtTime(mFreq * 0.5, t + 0.2);
+        g.gain.setValueAtTime(0.05, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+        osc.connect(g); g.connect(musicGain!);
+        osc.start(); osc.stop(t + 0.2);
       }
 
       beat = (beat + 1) % 32;
     };
 
-    bgmInterval = window.setInterval(playStep, 125); // 16th notes at 120bpm
+    bgmInterval = window.setInterval(playStep, 125);
+  },
+  playMenu: () => {
+      initAudio();
+      // Para sintetizador se estiver rodando
+      if (bgmInterval) { clearInterval(bgmInterval); bgmInterval = null; }
+      
+      // Tenta tocar música do menu
+      playBuffer('bgm_menu', 0.6, true);
   },
   stop: () => {
+    if (bgmSource) {
+        bgmSource.stop();
+        bgmSource = null;
+    }
+    currentTrackId = null;
     if (bgmInterval) {
       clearInterval(bgmInterval);
       bgmInterval = null;
     }
-  }
+  },
+  setVolume: setMusicVolume
 };
 
 export const sfx = {
-  shoot: () => playTone(800, 'square', 0.1, 300),
-  explosion: () => playNoise(0.3),
-  hit: () => playTone(150, 'sawtooth', 0.1, 50),
+  shoot: () => {
+      if (!playBuffer('shoot', 0.6)) playTone(800, 'square', 0.1, 400, 0.2);
+  },
+  explosion: () => {
+      if (!playBuffer('explosion', 0.7)) playNoise(0.4, 0.5);
+  },
+  hit: () => {
+      if (!playBuffer('hit', 0.8)) playTone(150, 'sawtooth', 0.1, 50, 0.4);
+  },
   collect: () => {
-    playTone(1200, 'sine', 0.1, 1800); 
-    setTimeout(() => playTone(1800, 'sine', 0.2), 50);
+    if (!playBuffer('collect', 0.6)) {
+        playTone(1200, 'sine', 0.1, 1800, 0.3); 
+        setTimeout(() => playTone(1800, 'sine', 0.2, null, 0.3), 50);
+    }
   },
   powerup: () => {
-    playTone(400, 'square', 0.1);
-    setTimeout(() => playTone(600, 'square', 0.1), 100);
-    setTimeout(() => playTone(800, 'square', 0.2), 200);
+    if (!playBuffer('powerup', 0.7)) playTone(400, 'square', 0.1, 800, 0.3);
   },
-  gameOver: () => playTone(300, 'sawtooth', 1.0, 50),
-  xp: () => playTone(2000, 'sine', 0.05),
+  gameOver: () => {
+      if (!playBuffer('game_over', 1.0)) playTone(300, 'sawtooth', 1.0, 50, 0.5);
+  },
   ultimateReady: () => {
-    playTone(400, 'sine', 0.1);
-    setTimeout(() => playTone(600, 'sine', 0.1), 100);
-    setTimeout(() => playTone(800, 'sine', 0.3), 200);
+    playTone(400, 'sine', 0.1, 800, 0.5);
   },
   ultimateUse: () => {
-    playNoise(1.0); // Big woosh
-    playTone(200, 'sawtooth', 1.5, 50);
+    if (!playBuffer('ultimate_use', 1.0)) {
+        playNoise(1.5, 0.7);
+        playTone(100, 'sawtooth', 1.0, 10, 0.8);
+    }
   },
-  init: initAudio
+  uiClick: () => {
+      if (!playBuffer('ui_click', 0.5)) playTone(2000, 'sine', 0.05, 3000, 0.08);
+  },
+  init: initAudio,
+  loadAllSounds: loadAllSounds,
+  setVolume: setSfxVolume,
+  setMasterVolume: setMasterVolume,
+  isPackLoaded: () => packLoaded
 };
