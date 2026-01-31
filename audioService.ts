@@ -6,7 +6,7 @@ let sfxGain: GainNode | null = null;
 
 let bgmInterval: number | null = null;
 let bgmSource: AudioBufferSourceNode | null = null;
-let currentTrackId: string | null = null; // Nova variável para rastrear a música atual
+let currentTrackId: string | null = null;
 let isMuted = false;
 
 // Volumes
@@ -18,9 +18,9 @@ let cachedNoiseBuffer: AudioBuffer | null = null;
 
 // --- ASSET MANAGER ---
 const buffers: Record<string, AudioBuffer> = {};
-let packLoaded = false; // Flag para UI
+let packLoaded = false; 
 
-// Mapa de Arquivos: Coloque seus arquivos em /public/sounds/
+// Mapa de Arquivos: Devem estar na pasta /public/sounds/
 const SOUND_FILES = {
     'shoot': '/sounds/shoot.mp3',
     'explosion': '/sounds/explosion.mp3',
@@ -50,7 +50,6 @@ const initAudio = () => {
     sfxGain.gain.value = volSfx;
     sfxGain.connect(masterGain);
 
-    // Buffer de ruído para fallback
     const bufferSize = audioCtx.sampleRate * 2.0; 
     cachedNoiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const data = cachedNoiseBuffer.getChannelData(0);
@@ -59,31 +58,39 @@ const initAudio = () => {
     }
   }
   if (audioCtx.state === 'suspended') {
-    audioCtx.resume();
+    audioCtx.resume().catch(e => console.warn("Audio resume failed (interaction needed)", e));
   }
 };
 
-// Carrega um único som
 const loadSound = async (key: string, url: string) => {
     if (!audioCtx) initAudio();
     if (!audioCtx) return;
 
     try {
         const response = await fetch(url);
-        if (!response.ok) throw new Error('Network response was not ok');
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+        }
         const arrayBuffer = await response.arrayBuffer();
         const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
         buffers[key] = audioBuffer;
-        packLoaded = true; // Se carregou pelo menos um, consideramos ativo
+        packLoaded = true; 
+        // console.log(`[Audio] Loaded: ${key}`);
     } catch (error) {
-        // Silencioso: se falhar, usaremos o sintetizador
+        console.warn(`[Audio] Falha ao carregar ${key} (${url}):`, error);
+        // Não lançamos erro para permitir que o jogo continue com o sintetizador
     }
 };
 
-// Carrega todos os sons definidos
 export const loadAllSounds = async () => {
+    console.log("[Audio] Iniciando carregamento de assets...");
     const promises = Object.entries(SOUND_FILES).map(([key, url]) => loadSound(key, url));
     await Promise.all(promises);
+    if (packLoaded) {
+        console.log("[Audio] Assets carregados com sucesso. Modo HQ ativado.");
+    } else {
+        console.warn("[Audio] Nenhum asset encontrado. Usando modo Sintetizador (Fallback). Verifique a pasta /public/sounds.");
+    }
 };
 
 const setMasterVolume = (val: number) => {
@@ -101,18 +108,13 @@ const setSfxVolume = (val: number) => {
     if (sfxGain) sfxGain.gain.setTargetAtTime(volSfx, audioCtx?.currentTime || 0, 0.1);
 }
 
-// Toca um buffer se existir
 const playBuffer = (key: string, vol: number = 1.0, loop: boolean = false): boolean => {
     if (isMuted || !audioCtx || !sfxGain || !buffers[key]) return false;
 
-    // Se for loop (música)
     if (loop) {
-        // CORREÇÃO: Se a música já está tocando, não reinicia
         if (currentTrackId === key && bgmSource) {
             return true;
         }
-
-        // Se for uma música diferente, para a anterior
         if (bgmSource) {
              try { bgmSource.stop(); } catch(e) {}
              bgmSource = null;
@@ -127,7 +129,6 @@ const playBuffer = (key: string, vol: number = 1.0, loop: boolean = false): bool
     gain.gain.value = vol;
 
     source.connect(gain);
-    // Se for loop (música), conecta no musicGain, senão no sfxGain
     gain.connect(loop ? musicGain! : sfxGain!);
     
     source.start();
@@ -191,14 +192,12 @@ export const music = {
   playGame: () => {
     initAudio();
     
-    // Para qualquer sintetizador rodando
     if (bgmInterval) { clearInterval(bgmInterval); bgmInterval = null; }
 
-    // Tenta tocar arquivo de música do jogo
+    // Tenta tocar arquivo MP3
     if (playBuffer('bgm_game', 0.8, true)) return;
 
-    // Fallback: Música Sintetizada (Apenas para o jogo)
-    
+    // Fallback Sintetizador
     let beat = 0;
     const playStep = () => {
       if (!audioCtx || !musicGain || isMuted) return;
@@ -231,7 +230,6 @@ export const music = {
         osc.start(); osc.stop(t + 0.12);
       }
 
-      // Snare
       if (beat % 8 === 4 && cachedNoiseBuffer) {
         const n = audioCtx.createBufferSource();
         n.buffer = cachedNoiseBuffer;
@@ -242,7 +240,6 @@ export const music = {
         n.start(t, 0, 0.2);
       }
       
-      // Melody
       if (beat % 4 === 2) {
         const melody = [440, 523, 659, 783];
         const mFreq = melody[Math.floor(beat/8) % melody.length];
@@ -264,10 +261,7 @@ export const music = {
   },
   playMenu: () => {
       initAudio();
-      // Para sintetizador se estiver rodando
       if (bgmInterval) { clearInterval(bgmInterval); bgmInterval = null; }
-      
-      // Tenta tocar música do menu
       playBuffer('bgm_menu', 0.6, true);
   },
   stop: () => {
