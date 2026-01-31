@@ -1,15 +1,23 @@
-
 import { createClient } from '@supabase/supabase-js';
 import { PlayerData, Profile, HUDSettings, AudioSettings, DailyScore } from './types';
 
-// ATENÇÃO: Substitua pelas suas chaves REAIS do Supabase se mudar o projeto
+// Configuração do Supabase
+// NOTA: Em produção, utilize variáveis de ambiente (process.env.VITE_SUPABASE_URL)
 const supabaseUrl = 'https://hkjnqyvxzphzkpgnlbwx.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhram5xeXZ4enBoemtwZ25sYnd4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3MDI1MzEsImV4cCI6MjA4NTI3ODUzMX0.I3xJx2oiEaOGh45xJZmPXKVAipL7v9GvCJdIhJC8bXo';
 
 const isSupabaseConfigured = supabaseUrl && supabaseAnonKey;
 
 export const supabase = isSupabaseConfigured 
-  ? createClient(supabaseUrl, supabaseAnonKey) 
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+      db: {
+        schema: 'public'
+      }
+    }) 
   : null;
 
 const LOCAL_STORAGE_KEY = 'sg_arcade_save';
@@ -28,21 +36,31 @@ const DEFAULT_AUDIO: AudioSettings = {
   sfxVolume: 0.5
 };
 
+// Função auxiliar para timeout
+const withTimeout = <T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> => {
+    return Promise.race([
+        promise,
+        new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms))
+    ]);
+};
+
 export const ensureAuthenticated = async () => {
   if (!supabase) return null;
   try {
-    // Tenta recuperar sessão existente
-    const { data: { session }, error } = await supabase.auth.getSession();
-    
-    if (error) throw error;
+    const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) return session.user;
 
-    // Se não houver sessão, faz login anônimo
-    const { data: anonData, error: anonError } = await supabase.auth.signInAnonymously();
-    if (anonError) throw anonError;
-    return anonData.user;
+    // Tenta login anônimo com timeout curto para não travar o jogo
+    const { data, error } = await withTimeout(
+        supabase.auth.signInAnonymously(),
+        3000, 
+        { data: null, error: { message: 'Timeout' } as any }
+    );
+    
+    if (error) throw error;
+    return data?.user ?? null;
   } catch (err) {
-    console.warn("Offline mode: Auth unavailable", err);
+    console.warn("Offline mode active: Auth skipped", err);
     return null;
   }
 };
@@ -63,7 +81,7 @@ export const getPlayerData = async (): Promise<LoadResult> => {
     currentXp: 0,
     maxWave: 0,
     lastSeenVersion: '0.0.0',
-    tutorialCompleted: false, // Default
+    tutorialCompleted: false,
     language: 'pt',
     hudSettings: DEFAULT_HUD,
     audioSettings: DEFAULT_AUDIO,
@@ -71,13 +89,12 @@ export const getPlayerData = async (): Promise<LoadResult> => {
     shipMastery: {}
   };
 
-  // 1. Tentar carregar do LocalStorage primeiro (para resposta instantânea)
+  // 1. Carregar do LocalStorage (Instantâneo)
   let localData = defaultData;
   try {
     const localString = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (localString) {
       const parsed = JSON.parse(localString);
-      // Mesclar com defaults para garantir que novos campos existam
       localData = { 
           ...defaultData, 
           ...parsed,
@@ -92,73 +109,72 @@ export const getPlayerData = async (): Promise<LoadResult> => {
     console.warn('Erro LocalStorage:', e);
   }
 
-  // 2. Se tiver Supabase, tentar sincronizar
-  if (supabase) {
-    try {
-      const user = await ensureAuthenticated();
-      if (user) {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*') 
-          .eq('id', user.id)
-          .single();
-        
-        // Se usuário existe mas não tem perfil, cria um
-        if (error && error.code === 'PGRST116') {
-           const initialData = { 
-             id: user.id, 
-             username: localData.username !== 'ROOKIE' ? localData.username : `PILOT-${user.id.substring(0,4).toUpperCase()}`,
-             scrap: localData.scrap, // Preserva scrap local se existir
-             dark_matter: 0,
-             high_score: localData.highScore,
-             inventory: localData.inventory,
-             level: 1,
-             current_xp: 0,
-             max_wave: 0,
-             language: 'pt',
-             last_seen_version: '0.0.0',
-             tutorial_completed: localData.tutorialCompleted,
-             hud_settings: DEFAULT_HUD,
-             audio_settings: DEFAULT_AUDIO,
-             modules: { inventory: [], equipped: {} },
-             ship_mastery: {}
-           };
-           await supabase.from('profiles').insert(initialData);
-           return { data: { ...defaultData, ...initialData, ...localData }, isOnline: true };
-        }
-
-        if (data) {
-          // Merge Cloud Data > Local Data
-          const mergedData: PlayerData = {
-              username: data.username || localData.username,
-              scrap: Math.max(data.scrap || 0, localData.scrap), 
-              darkMatter: data.dark_matter || 0,
-              highScore: Math.max(data.high_score || 0, localData.highScore),
-              inventory: (data.inventory?.length > localData.inventory.length) ? data.inventory : localData.inventory,
-              level: Math.max(data.level || 1, localData.level),
-              currentXp: data.current_xp || 0,
-              maxWave: Math.max(data.max_wave || 0, localData.maxWave),
-              lastSeenVersion: data.last_seen_version || '0.0.0',
-              tutorialCompleted: data.tutorial_completed ?? false,
-              language: data.language || 'pt',
-              hudSettings: { ...DEFAULT_HUD, ...(data.hud_settings || {}) },
-              audioSettings: { ...DEFAULT_AUDIO, ...(data.audio_settings || {}) },
-              modules: data.modules || { inventory: [], equipped: {} },
-              shipMastery: data.ship_mastery || {}
-          };
-          
-          // Salva de volta no local storage para manter sync
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mergedData));
-          
-          return { data: mergedData, isOnline: true };
-        }
-      }
-    } catch (error) {
-      console.warn('Usando save local devido a erro de rede:', error);
-    }
+  // 2. Se não tiver configuração ou internet, retorna local
+  if (!supabase || !navigator.onLine) {
+      return { data: localData, isOnline: false };
   }
 
-  // Fallback: Retorna dados locais
+  // 3. Tentar sincronizar com a nuvem (com Timeout)
+  try {
+      const user = await ensureAuthenticated();
+      if (!user) return { data: localData, isOnline: false };
+
+      // Promise de busca de dados
+      const fetchProfile = async () => {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('*') 
+            .eq('id', user.id)
+            .single();
+
+          if (error && error.code === 'PGRST116') {
+             // Usuário novo, cria perfil
+             const initialData = { 
+               id: user.id, 
+               username: localData.username !== 'ROOKIE' ? localData.username : `PILOT-${user.id.substring(0,4).toUpperCase()}`,
+               scrap: localData.scrap, 
+               high_score: localData.highScore,
+               inventory: localData.inventory,
+               hud_settings: localData.hudSettings,
+               audio_settings: localData.audioSettings
+             };
+             await supabase.from('profiles').insert(initialData);
+             return { ...defaultData, ...initialData };
+          }
+          return data;
+      };
+
+      // Timeout de 3 segundos para a rede. Se falhar, usa dados locais.
+      const cloudData = await withTimeout(fetchProfile(), 3000, null);
+
+      if (cloudData) {
+          // Merge Inteligente (Cloud vence, mas mantém progresso local se for maior)
+          const mergedData: PlayerData = {
+              username: cloudData.username || localData.username,
+              scrap: Math.max(cloudData.scrap || 0, localData.scrap), 
+              darkMatter: cloudData.dark_matter || 0,
+              highScore: Math.max(cloudData.high_score || 0, localData.highScore),
+              inventory: (cloudData.inventory?.length > localData.inventory.length) ? cloudData.inventory : localData.inventory,
+              level: Math.max(cloudData.level || 1, localData.level),
+              currentXp: cloudData.current_xp || 0,
+              maxWave: Math.max(cloudData.max_wave || 0, localData.maxWave),
+              lastSeenVersion: cloudData.last_seen_version || '0.0.0',
+              tutorialCompleted: cloudData.tutorial_completed ?? localData.tutorialCompleted,
+              language: cloudData.language || 'pt',
+              hudSettings: { ...DEFAULT_HUD, ...(cloudData.hud_settings || {}) },
+              audioSettings: { ...DEFAULT_AUDIO, ...(cloudData.audio_settings || {}) },
+              modules: cloudData.modules || { inventory: [], equipped: {} },
+              shipMastery: cloudData.ship_mastery || {}
+          };
+          
+          // Atualiza cache local
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mergedData));
+          return { data: mergedData, isOnline: true };
+      }
+  } catch (error) {
+      console.warn('Network sync skipped:', error);
+  }
+
   return { data: localData, isOnline: false };
 };
 
@@ -167,114 +183,92 @@ export const savePlayerData = async (data: PlayerData) => {
   try {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
   } catch (error) {
-    console.error('Erro no LocalStorage save', error);
+    console.error('Erro LocalStorage save', error);
   }
 
-  // 2. Salva na Nuvem se possível
-  if (supabase) {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session && session.user) {
-        // Converter estruturas complexas para JSON puro para o Supabase
-        await supabase.from('profiles').upsert({
-          id: session.user.id,
-          username: data.username,
-          scrap: data.scrap,
-          dark_matter: data.darkMatter,
-          high_score: data.highScore,
-          inventory: data.inventory,
-          level: data.level,
-          current_xp: data.currentXp,
-          max_wave: data.maxWave,
-          language: data.language,
-          last_seen_version: data.lastSeenVersion,
-          tutorial_completed: data.tutorialCompleted,
-          // Casting explícito para garantir formato JSONB
-          hud_settings: data.hudSettings as any,
-          audio_settings: data.audioSettings as any,
-          modules: data.modules as any,
-          ship_mastery: data.shipMastery as any,
-          updated_at: new Date().toISOString()
-        });
-      }
-    } catch (error) {
-      console.warn('Save na nuvem pendente (offline)', error);
-    }
+  // 2. Salva na Nuvem (Fire and Forget)
+  if (supabase && navigator.onLine) {
+    ensureAuthenticated().then(user => {
+        if (user) {
+            supabase.from('profiles').upsert({
+              id: user.id,
+              username: data.username,
+              scrap: data.scrap,
+              dark_matter: data.darkMatter,
+              high_score: data.highScore,
+              inventory: data.inventory,
+              level: data.level,
+              current_xp: data.currentXp,
+              max_wave: data.maxWave,
+              language: data.language,
+              last_seen_version: data.lastSeenVersion,
+              tutorial_completed: data.tutorialCompleted,
+              hud_settings: data.hudSettings as any,
+              audio_settings: data.audioSettings as any,
+              modules: data.modules as any,
+              ship_mastery: data.shipMastery as any,
+              updated_at: new Date().toISOString()
+            }).then(({ error }) => {
+                if (error) console.warn("Cloud save failed:", error.message);
+            });
+        }
+    });
   }
 };
 
 export const getLeaderboard = async (): Promise<Profile[]> => {
   if (!supabase) return [];
   try {
-    // Garantir que estamos autenticados para passar pelas regras de RLS
-    await ensureAuthenticated();
-
-    // Timeout mais relaxado (5s)
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000));
-    
-    const query = supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('id, username, high_score, scrap, level, ship_mastery')
       .order('high_score', { ascending: false })
       .limit(10);
       
-    const { data, error } = await Promise.race([query, timeout]) as any;
-    
-    if (error) {
-        console.error("Supabase Error:", error);
-        throw error;
-    }
+    if (error) throw error;
     return data || [];
   } catch (error) {
-    console.warn("Leaderboard offline or unreachable:", error); 
     return [];
   }
 };
 
-// --- DAILY OPS ---
-
 export const submitDailyScore = async (score: number, wave: number, shipId: string) => {
     if (!supabase) return;
     try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) return;
+        const user = await ensureAuthenticated();
+        if (!user) return;
 
-        // Formato YYYY-MM-DD
         const today = new Date().toISOString().slice(0, 10);
-
-        // Busca score atual do dia
+        
+        // Verifica se já tem score melhor hoje
         const { data: existing } = await supabase
             .from('daily_scores')
             .select('score')
-            .eq('user_id', session.user.id)
+            .eq('user_id', user.id)
             .eq('date', today)
             .single();
 
-        if (existing && existing.score >= score) {
-            return; // Score atual é menor ou igual ao já salvo
-        }
+        if (existing && existing.score >= score) return;
 
-        const { data: profile } = await supabase.from('profiles').select('username').eq('id', session.user.id).single();
+        const { data: profile } = await supabase.from('profiles').select('username').eq('id', user.id).single();
         
         await supabase.from('daily_scores').upsert({
-            user_id: session.user.id,
+            user_id: user.id,
             date: today,
-            username: profile?.username || 'PILOT',
+            username: profile?.username || 'UNKNOWN',
             score: score,
             wave: wave,
             ship_id: shipId
         }, { onConflict: 'user_id, date' });
 
     } catch (e) {
-        console.warn("Daily score submission failed", e);
+        console.warn("Daily score error", e);
     }
 };
 
 export const getDailyLeaderboard = async (): Promise<DailyScore[]> => {
     if (!supabase) return [];
     try {
-        await ensureAuthenticated();
-        
         const today = new Date().toISOString().slice(0, 10);
         const { data, error } = await supabase
             .from('daily_scores')
@@ -286,7 +280,6 @@ export const getDailyLeaderboard = async (): Promise<DailyScore[]> => {
         if (error) throw error;
         return data || [];
     } catch (e) {
-        console.warn("Daily Leaderboard unavailable:", e);
         return [];
     }
 };
