@@ -47,12 +47,13 @@ const withTimeout = <T>(promise: Promise<T>, ms: number, fallback: T): Promise<T
 export const ensureAuthenticated = async () => {
   if (!supabase) return null;
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    // Cast to any to bypass type checks if definition is outdated
+    const { data: { session } } = await (supabase.auth as any).getSession();
     if (session?.user) return session.user;
 
     // Tenta login anônimo com timeout curto para não travar o jogo
     const { data, error } = await withTimeout(
-        supabase.auth.signInAnonymously(),
+        (supabase.auth as any).signInAnonymously(),
         3000, 
         { data: null, error: { message: 'Timeout' } as any }
     );
@@ -190,6 +191,7 @@ export const savePlayerData = async (data: PlayerData) => {
   if (supabase && navigator.onLine) {
     ensureAuthenticated().then(user => {
         if (user) {
+            // Removido 'updated_at' para evitar erros de schema se a coluna não existir
             supabase.from('profiles').upsert({
               id: user.id,
               username: data.username,
@@ -206,8 +208,7 @@ export const savePlayerData = async (data: PlayerData) => {
               hud_settings: data.hudSettings as any,
               audio_settings: data.audioSettings as any,
               modules: data.modules as any,
-              ship_mastery: data.shipMastery as any,
-              updated_at: new Date().toISOString()
+              ship_mastery: data.shipMastery as any
             }).then(({ error }) => {
                 if (error) console.warn("Cloud save failed:", error.message);
             });
