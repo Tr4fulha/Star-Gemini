@@ -1,4 +1,6 @@
 
+import { APP_VERSION } from './constants';
+
 let audioCtx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
 let musicGain: GainNode | null = null;
@@ -67,15 +69,31 @@ const loadSound = async (key: string, url: string) => {
     if (!audioCtx) return;
 
     try {
-        const response = await fetch(url);
+        // Cache Buster: Adiciona versão para forçar atualização no Vercel
+        const versionedUrl = `${url}?v=${APP_VERSION}`;
+        
+        const response = await fetch(versionedUrl);
         if (!response.ok) {
             throw new Error(`HTTP ${response.status} - ${response.statusText}`);
         }
+
+        // Verificação de tipo para evitar erro de decodificação de HTML (404 page)
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('text/html')) {
+             throw new Error(`Recebido HTML em vez de Áudio. O arquivo provavelmente não existe (404). Verifique o nome/caminho.`);
+        }
+
         const arrayBuffer = await response.arrayBuffer();
-        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-        buffers[key] = audioBuffer;
-        packLoaded = true; 
-        // console.log(`[Audio] Loaded: ${key}`);
+        
+        // Decodificação segura
+        try {
+            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+            buffers[key] = audioBuffer;
+            packLoaded = true; 
+        } catch (decodeError) {
+            throw new Error(`Erro ao decodificar áudio (Arquivo corrompido ou formato inválido): ${decodeError}`);
+        }
+
     } catch (error) {
         console.warn(`[Audio] Falha ao carregar ${key} (${url}):`, error);
         // Não lançamos erro para permitir que o jogo continue com o sintetizador
@@ -83,7 +101,7 @@ const loadSound = async (key: string, url: string) => {
 };
 
 export const loadAllSounds = async () => {
-    console.log("[Audio] Iniciando carregamento de assets...");
+    console.log(`[Audio] Iniciando carregamento de assets (v${APP_VERSION})...`);
     const promises = Object.entries(SOUND_FILES).map(([key, url]) => loadSound(key, url));
     await Promise.all(promises);
     if (packLoaded) {
