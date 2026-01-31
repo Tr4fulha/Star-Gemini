@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { Edit2, Check, Settings, Trophy, ShoppingBag, BookOpen, Play, ScrollText, Crosshair, HelpCircle, X } from 'lucide-react';
+import { Edit2, Check, Settings, Trophy, ShoppingBag, BookOpen, Play, ScrollText, Crosshair, HelpCircle, X, Wifi, WifiOff } from 'lucide-react';
 import { TRANSLATIONS, APP_VERSION } from '../constants';
 import { useGame } from '../context/GameContext';
 import { drawGrid, drawStars } from '../renderer/CanvasRenderer';
@@ -16,8 +15,8 @@ export const MainMenu: React.FC = () => {
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Efeito para iniciar música e background
   useEffect(() => {
-      // Iniciar Música do Menu
       music.playMenu();
 
       const canvas = canvasRef.current;
@@ -77,6 +76,11 @@ export const MainMenu: React.FC = () => {
       };
   }, []);
 
+  // Handler Global para desbloquear áudio em qualquer clique
+  const handleInteraction = () => {
+      sfx.resume();
+  };
+
   const handleSaveName = () => {
     if (tempName.trim()) {
       sfx.uiClick();
@@ -108,7 +112,10 @@ export const MainMenu: React.FC = () => {
   }
 
   return (
-    <div className="w-full h-full bg-[#050014] overflow-y-auto custom-scrollbar relative flex flex-col items-center justify-center p-4">
+    <div 
+        className="w-full h-full bg-[#050014] overflow-y-auto custom-scrollbar relative flex flex-col items-center justify-center p-4"
+        onClick={handleInteraction} // Importante: Qualquer clique na tela tenta ativar o áudio
+    >
       {/* Fundo Canvas Dinâmico */}
       <canvas ref={canvasRef} className="fixed inset-0 z-0 w-full h-full" />
       
@@ -255,15 +262,20 @@ export const MainMenu: React.FC = () => {
 
       </div>
       
-      <div className="fixed bottom-4 right-6 text-cyan-500/20 text-[9px] font-display pointer-events-none select-none italic tracking-widest">
-          SYS_VER: {APP_VERSION} // ONLINE_STATUS: {isOnline ? 'ACTIVE' : 'OFFLINE'}
+      {/* Rodapé com status */}
+      <div className="fixed bottom-4 right-6 flex items-center gap-4 text-[9px] font-display pointer-events-none select-none italic tracking-widest text-gray-500">
+          <span>SYS_VER: {APP_VERSION}</span>
+          <span className="flex items-center gap-1">
+              {isOnline ? <Wifi size={10} className="text-green-500"/> : <WifiOff size={10} className="text-red-500"/>}
+              {isOnline ? 'UPLINK ACTIVE' : 'OFFLINE MODE'}
+          </span>
       </div>
     </div>
   );
 };
 
 const SecondaryBtn = ({ icon, label, onClick, color, disabled }: any) => (
-    <button onClick={() => { sfx.uiClick(); onClick(); }} disabled={disabled} className={`h-full bg-[#0a0610]/90 border ${color} rounded-lg flex flex-col items-center justify-center gap-1 hover:bg-white/5 active:scale-90 transition-all ${disabled ? 'opacity-30 grayscale' : 'hover:border-opacity-100'}`}>
+    <button onClick={(e) => { e.stopPropagation(); sfx.uiClick(); onClick(); }} disabled={disabled} className={`h-full bg-[#0a0610]/90 border ${color} rounded-lg flex flex-col items-center justify-center gap-1 hover:bg-white/5 active:scale-90 transition-all ${disabled ? 'opacity-30 grayscale' : 'hover:border-opacity-100'}`}>
         <div className="shrink-0">{icon}</div>
         <span className="text-[7px] md:text-[10px] font-bold tracking-widest uppercase truncate w-full px-1 text-center">{label}</span>
     </button>
