@@ -128,7 +128,6 @@ export type PowerUpType = 'health' | 'triple_shot' | 'rapid_fire' | 'shield' | '
 
 export type EnemyType = 'scout' | 'fighter' | 'asteroid' | 'kamikaze' | 'sniper' | 'tank';
 export type ElementalType = 'none' | 'ice' | 'fire';
-export type BossType = 'observer' | 'titan' | 'wraith';
 
 export interface Particle {
   active: boolean;
@@ -229,6 +228,8 @@ export interface Enemy {
   hitFlash: number;
 }
 
+export type BossType = 'observer' | 'titan' | 'wraith';
+
 export interface BossState {
   active: boolean;
   type: BossType;
@@ -244,10 +245,12 @@ export interface BossState {
   shootTimer: number;
   moveDir: number;
   hitFlash: number;
-  chargeFlash?: number;
-  isCharging?: boolean;
-  teleportTimer?: number;
-  opacity?: number;
+  
+  // Habilidades Específicas
+  chargeFlash?: number; // Titan: aviso antes de investir
+  isCharging?: boolean; // Titan: estado de investida
+  teleportTimer?: number; // Wraith: cooldown do teleporte
+  opacity?: number; // Wraith: efeito visual
 }
 
 export interface Scrap {

@@ -1,6 +1,5 @@
 
-
-import { GameState, PlayerState, ShipConfig, GameMode, InputState, PowerUpType, Enemy, GameResult, GameUiData, Bullet, FloatingText, Language, Particle, Scrap, PowerUp, BossType } from '../types';
+import { GameState, PlayerState, ShipConfig, GameMode, InputState, PowerUpType, Enemy, GameResult, GameUiData, Bullet, FloatingText, Language, Particle, Scrap, PowerUp, BossType, BossState } from '../types';
 import { SeededRNG } from '../utils/rng';
 import { sfx, music } from '../audioService';
 import { InputHandler } from './InputHandler';
@@ -57,8 +56,6 @@ export class GameController {
     private isSpawning: boolean = true;
     private initialSpawnTimer: any = null;
     private hearts: number = 3;
-    
-    private shockwaveRadius: number = 0;
 
     // --- OBJECT POOLS ---
     private bulletPool: ObjectPool<Bullet>;
@@ -100,7 +97,7 @@ export class GameController {
 
     private createInitialPlayer(): PlayerState {
         return {
-            x: 0, y: 0, vx: 0, vy: 0, width: 44, height: 44, 
+            x: 0, y: 2000, vx: 0, vy: 0, width: 44, height: 44, 
             invulnerable: 5.0, lean: 0, hitFlash: 0, 
             energy: 0, maxEnergy: 100,
             status: { frozen: 0, burn: 0, burnTick: 0 },
@@ -127,7 +124,7 @@ export class GameController {
     }
 
     private initEnvironment() {
-        this.player.y = this.height + 200; 
+        this.player.y = this.height + 500;
         this.player.x = this.width / 2 - this.player.width / 2;
         this.initHearts();
 
@@ -153,6 +150,7 @@ export class GameController {
         this.lastTime = performance.now();
         
         this.input.bind();
+        
         music.playGame();
         
         this.isSpawning = true;
@@ -194,42 +192,11 @@ export class GameController {
 
     public useSkill() {
         if (this.isDead || this.isSpawning) return;
-        
-        if (this.player.y > this.height - 100) return;
-
         if (this.player.energy >= 100) {
             this.player.energy = 0;
             sfx.ultimateUse();
             this.gameState.shake = 25;
             this.player.timers.skill_active = 5.0;
-
-            if (this.config.ship.id === 'core') {
-                this.shockwaveRadius = 10;
-                this.gameState.enemyBullets.forEach(b => {
-                    b.active = false;
-                    this.spawnExplosion(b.x, b.y, 10);
-                });
-                this.gameState.enemyBullets = []; 
-                
-                this.gameState.enemies.forEach((e, idx) => {
-                    if (e.active && e.y > 0 && e.y < this.height) {
-                        e.hp -= 20; 
-                        e.hitFlash = 0.5;
-                        if (e.hp <= 0) this.handleEnemyKill(e, idx);
-                    }
-                });
-
-                this.spawnFloatingText(this.player.x, this.player.y - 50, "EMP BLAST", "#00ffff");
-            } 
-            else if (this.config.ship.id === 'phantom') {
-                 this.spawnFloatingText(this.player.x, this.player.y - 50, "PHASE SHIFT", "#d946ef");
-            }
-            else if (this.config.ship.id === 'striker') {
-                 this.player.timers.rapid_fire = 5.0;
-                 this.player.timers.damage = 5.0;
-                 this.spawnFloatingText(this.player.x, this.player.y - 50, "OVERDRIVE", "#ef4444");
-            }
-
             this.notifyUi();
         }
     }
@@ -299,40 +266,30 @@ export class GameController {
         const inputState = this.input.getState();
 
         if (state.shake > 0) state.shake = Math.max(0, state.shake - dt * 30);
-        
-        if (this.shockwaveRadius > 0) {
-            this.shockwaveRadius += dt * 1000;
-            if (this.shockwaveRadius > Math.max(this.width, this.height)) {
-                this.shockwaveRadius = 0;
-            }
-        }
 
-        // Spawning Logic
+        // Wave Logic
         if (!state.boss.active && !this.isSpawning) {
             if (state.waveEnemiesToSpawn > 0) {
                 state.enemySpawnTimer -= dt;
                 if (state.enemySpawnTimer <= 0) {
                     this.spawnEnemy();
-                    state.enemySpawnTimer = 0.5 + this.random() * (1.5 / (1 + state.waveCount * 0.1));
+                    state.enemySpawnTimer = 0.5 + this.random() * (2.0 / (1 + state.waveCount * 0.1));
                 }
             } else if (state.enemies.length === 0) {
                 this.nextWave();
             }
         }
 
-        // Update Physics & Entities
+        // --- UPDATE SYSTEMS ---
         updatePlayerMovement(player, inputState.keys, inputState.joystick, this.config.ship, dt, this.width, this.height, this.scale);
-        updateEntities(state, player, dt, this.width, this.height, this.scale, this.height / 2);
+        updateEntities(state, dt, this.width, this.height, this.scale, this.height / 2);
         updateBoss(state.boss, dt, this.width, this.scale, timestamp);
         updateScraps(state.scraps, player, dt, this.height, this.scale, this.config.equippedModules.includes('auto_magnet'));
         
-        // Enemy Firing Logic
-        this.handleEnemyAI(dt);
-
         this.updateBossLogic(dt, timestamp);
         this.handleCombat(dt, timestamp, inputState.fire);
         
-        // Solar Storm Hazards
+        // Solar Flare Event
         if (state.currentSector === 'solar_storm') {
             if (state.isSolarFlaring) {
                 state.solarFlareTimer -= dt;
@@ -340,19 +297,20 @@ export class GameController {
                     state.isSolarFlaring = false;
                     state.solarFlareTimer = 15 + this.random() * 10;
                 } else if (player.invulnerable <= 0) {
+                    // Dano por tick se não estiver protegido (sombra de asteroides - não implementado visualmente, então dano baixo)
                     if (timestamp % 500 < 50) this.handlePlayerHit(0.5); 
                 }
             } else {
                 state.solarFlareTimer -= dt;
                 if (state.solarFlareTimer <= 0) {
                     state.isSolarFlaring = true;
-                    state.solarFlareTimer = 3.0;
+                    state.solarFlareTimer = 3.0; // Duração
                     this.events.emit('warning', TRANSLATIONS[this.config.language].warnings.solar_flare);
                 }
             }
         }
 
-        // Vampiric Module Logic
+        // Regen Module
         if (this.config.equippedModules.includes('vampiric_rounds') && player.killCount >= 50) {
             if (this.hearts < (this.config.ship.health + 1)) {
                 this.hearts++;
@@ -367,14 +325,16 @@ export class GameController {
             player.status.burn -= dt;
             player.status.burnTick -= dt;
             if (player.status.burnTick <= 0) {
-                this.handlePlayerHit(0.5);
+                this.handlePlayerHit(0.5); // DoT
                 player.status.burnTick = 1.0;
             }
         }
         if (player.status.frozen > 0) {
             player.status.frozen -= dt;
+            // Slow down logic would go in movement
         }
 
+        // Collision Check
         checkCollisions(state, player, this.scale, {
             onBossHit: (dmg) => {
                 state.boss.hp -= dmg;
@@ -409,6 +369,7 @@ export class GameController {
             },
             onExplosion: (x, y, radius, dmg) => {
                 this.spawnExplosion(x, y, radius);
+                // Simple AOE check
                 for(let i=0; i<state.enemies.length; i++) {
                     const e = state.enemies[i];
                     if(!e.active) continue;
@@ -423,60 +384,14 @@ export class GameController {
             }
         });
         
+        // Combo Timer
         if (state.comboTimer > 0) {
             state.comboTimer -= dt;
             if (state.comboTimer <= 0) state.currentCombo = 1;
         }
 
+        // Notify UI
         this.notifyUi();
-    }
-
-    private handleEnemyAI(dt: number) {
-        const enemies = this.gameState.enemies;
-        const playerCx = this.player.x + this.player.width/2;
-        const playerCy = this.player.y + this.player.height/2;
-
-        for (let i = 0; i < enemies.length; i++) {
-            const e = enemies[i];
-            if (!e.active || e.isEntering) continue;
-
-            e.shootTimer -= dt;
-
-            if (e.shootTimer <= 0) {
-                const eCx = e.x + e.width/2;
-                const eCy = e.y + e.height/2;
-
-                const dx = playerCx - eCx;
-                const dy = playerCy - eCy;
-                const angle = Math.atan2(dy, dx);
-                
-                const vx = Math.cos(angle);
-                const vy = Math.sin(angle);
-
-                if (e.type === 'fighter') {
-                    // Spread Shot (Shotgun)
-                    this.spawnEnemyBullet(eCx, eCy + 10, vx, 300, e.color, 0, vy * 300);
-                    this.spawnEnemyBullet(eCx, eCy + 10, Math.cos(angle - 0.3), 300, e.color, 0, Math.sin(angle - 0.3) * 300);
-                    this.spawnEnemyBullet(eCx, eCy + 10, Math.cos(angle + 0.3), 300, e.color, 0, Math.sin(angle + 0.3) * 300);
-                    e.shootTimer = 2.0;
-
-                } else if (e.type === 'sniper') {
-                    // Tiro rápido e preciso
-                    this.spawnEnemyBullet(eCx, eCy + 10, vx, 0, '#fff', 2, vy * 600); 
-                    e.shootTimer = 3.0;
-
-                } else if (e.type === 'tank') {
-                    // Tiro lento e pesado
-                    this.spawnEnemyBullet(eCx, eCy + 20, vx, 0, '#0f0', 2, vy * 200);
-                    e.shootTimer = 2.5;
-
-                } else if (e.type === 'scout') {
-                    // Tiro simples baixo (padrão)
-                    this.spawnEnemyBullet(eCx, eCy + 10, 0, 300, e.color);
-                    e.shootTimer = 1.5;
-                }
-            }
-        }
     }
 
     private updateBossLogic(dt: number, timestamp: number) {
@@ -486,18 +401,23 @@ export class GameController {
     
         boss.shootTimer -= dt;
     
+        // --- OBSERVER AI ---
         if (boss.type === 'observer') {
             if (boss.shootTimer <= 0) {
                 this.fireObserverPattern();
                 boss.shootTimer = boss.phase === 3 ? 1.5 : 2.0;
             }
+            
             const hpPercent = boss.hp / boss.maxHp;
             if (hpPercent < 0.4) boss.phase = 3;
             else if (hpPercent < 0.7) boss.phase = 2;
             else boss.phase = 1;
         }
+    
+        // --- TITAN AI ---
         else if (boss.type === 'titan') {
             if (boss.isCharging) {
+                // Charging movement
                 boss.y += 800 * dt * this.scale;
                 if (boss.y > this.height) {
                     boss.y = -200;
@@ -507,6 +427,8 @@ export class GameController {
                 }
                 return; 
             }
+    
+            // Charge Prep
             if (!boss.isCharging && boss.chargeFlash && boss.chargeFlash > 0) {
                 boss.chargeFlash -= dt;
                 if (boss.chargeFlash <= 0) {
@@ -515,7 +437,9 @@ export class GameController {
                 }
                 return;
             }
+    
             if (boss.shootTimer <= 0) {
+                // Chance to charge
                 if (boss.hp < boss.maxHp * 0.6 && this.random() > 0.7) {
                     boss.chargeFlash = 1.0; 
                 } else {
@@ -524,23 +448,29 @@ export class GameController {
                 }
             }
         }
+    
+        // --- WRAITH AI ---
         else if (boss.type === 'wraith') {
             if (boss.teleportTimer !== undefined) {
                  boss.teleportTimer -= dt;
+                 
                  if (boss.teleportTimer < 0.5 && boss.teleportTimer > 0) {
                      boss.opacity = Math.max(0, boss.teleportTimer * 2); 
                  }
+                 
                  if (boss.teleportTimer <= 0) {
                      boss.x = 50 + this.random() * (this.width - 100);
                      boss.y = 50 + this.random() * (this.height / 3);
                      boss.opacity = 1.0;
                      boss.teleportTimer = 3.0 + this.random() * 2.0;
+                     
                      this.fireWraithPattern();
                      boss.shootTimer = 1.5;
                  }
             } else {
                 boss.teleportTimer = 4.0;
             }
+    
             if (boss.shootTimer <= 0 && (!boss.opacity || boss.opacity > 0.8)) {
                  this.fireWraithPattern();
                  boss.shootTimer = 1.2;
@@ -555,16 +485,19 @@ export class GameController {
         const cy = boss.y + boss.height/2;
 
         if (phase === 1) {
+            // Fan
             for(let i=-2; i<=2; i++) {
                 this.spawnEnemyBullet(cx, cy + 40, i * 0.3, 300, '#00f3ff');
             }
         } else if (phase === 2) {
+            // Spiral
             const count = 12;
             for(let i=0; i<count; i++) {
                 const angle = (i / count) * Math.PI * 2 + (performance.now() / 1000);
                 this.spawnEnemyBullet(cx, cy, Math.cos(angle)*1.5, Math.sin(angle)*300, '#ff00ff');
             }
         } else {
+            // Heavy
              for(let i=-4; i<=4; i++) {
                 this.spawnEnemyBullet(cx + i*10, cy + 50, 0, 450, '#ff0000');
             }
@@ -576,6 +509,8 @@ export class GameController {
         const boss = this.gameState.boss;
         const cx = boss.x + boss.width/2;
         const cy = boss.y + boss.height;
+
+        // Wall
         for(let i=0; i<8; i++) {
             const xOff = (i - 3.5) * 40 * this.scale;
             this.spawnEnemyBullet(cx + xOff, cy, 0, 250, '#ffaa00');
@@ -587,35 +522,37 @@ export class GameController {
         const boss = this.gameState.boss;
         const cx = boss.x + boss.width/2;
         const cy = boss.y + boss.height/2;
+
+        // Sniper Shot (Aimed)
         const dx = (this.player.x + this.player.width/2) - cx;
         const dy = (this.player.y + this.player.height/2) - cy;
         const dist = Math.sqrt(dx*dx + dy*dy);
+        
         const vx = (dx/dist) * 1.5;
         const speed = 600;
 
-        // Tiro direto
-        this.spawnEnemyBullet(cx, cy, vx, 0, '#d946ef', 1, (dy/dist) * speed);
-        // Tiros laterais
-        this.spawnEnemyBullet(cx, cy, vx - 0.5, 0, '#d946ef', 1, (dy/dist) * speed * 0.9);
-        this.spawnEnemyBullet(cx, cy, vx + 0.5, 0, '#d946ef', 1, (dy/dist) * speed * 0.9);
+        this.spawnEnemyBullet(cx, cy, vx, speed, '#d946ef');
+        // Side bullets
+        this.spawnEnemyBullet(cx, cy, vx - 0.5, speed * 0.8, '#d946ef');
+        this.spawnEnemyBullet(cx, cy, vx + 0.5, speed * 0.8, '#d946ef');
+        
         sfx.shoot();
     }
 
     private handleCombat(dt: number, timestamp: number, fireInput: boolean) {
-        if (this.isDead || this.player.y > this.height - 100) return;
-
         if (this.fireCooldown > 0) this.fireCooldown -= dt;
 
+        // Auto-fire or Manual
         if (fireInput && this.fireCooldown <= 0) {
             this.fireBullet();
             
-            // Taxas de disparo mais rápidas (baseado em App.tsx)
-            let baseRate = 0.20;
-            if (this.config.ship.id === 'core') baseRate = 0.18; 
-            if (this.config.ship.id === 'phantom') baseRate = 0.14; 
-            if (this.config.ship.id === 'striker') baseRate = 0.30; 
+            // Base fire rate logic
+            let baseRate = 0.25;
+            if (this.config.ship.id === 'core') baseRate = 0.2; // Faster
+            if (this.config.ship.id === 'striker') baseRate = 0.35; // Slower
             
-            if (this.player.timers.rapid_fire > 0) baseRate = 0.06; // Machine gun mode
+            // Bonuses
+            if (this.player.timers.rapid_fire > 0) baseRate *= 0.5;
             if (this.config.inventory.includes('weapon_preheat')) baseRate *= 0.9;
 
             this.fireCooldown = baseRate;
@@ -629,21 +566,16 @@ export class GameController {
         
         const dmg = this.config.ship.power * (this.player.timers.damage > 0 ? 2 : 1) * (this.config.inventory.includes('weapon_preheat') ? 1.15 : 1.0);
         const color = this.player.timers.damage > 0 ? '#ff0000' : this.config.ship.color;
+
+        // Berzerk Module Logic
         const berzerkMult = this.config.equippedModules.includes('berzerk_drive') ? (1 + (3 - this.hearts) * 0.3) : 1;
         const finalDmg = dmg * berzerkMult;
 
-        // TIRO DIRECIONAL: A bala herda o momentum lateral (Drift Shot)
-        // Isso permite mirar na diagonal movendo a nave
-        const movementMomentum = this.player.vx / 300; 
-
-        // Velocidade do tiro (rápida)
-        const bulletSpeed = -900 * this.scale;
-
-        this.spawnPlayerBullet(cx, cy, movementMomentum, bulletSpeed, color, finalDmg);
+        this.spawnPlayerBullet(cx, cy, 0, -800, color, finalDmg);
 
         if (this.player.timers.triple_shot > 0) {
-            this.spawnPlayerBullet(cx - 10, cy + 5, -0.2 + movementMomentum, bulletSpeed * 0.95, color, finalDmg);
-            this.spawnPlayerBullet(cx + 10, cy + 5, 0.2 + movementMomentum, bulletSpeed * 0.95, color, finalDmg);
+            this.spawnPlayerBullet(cx - 10, cy + 5, -0.2, -750, color, finalDmg);
+            this.spawnPlayerBullet(cx + 10, cy + 5, 0.2, -750, color, finalDmg);
         }
 
         sfx.shoot();
@@ -651,54 +583,41 @@ export class GameController {
 
     private spawnPlayerBullet(x: number, y: number, vx: number, vy: number, color: string, damage: number) {
         const b = this.bulletPool.get();
-        b.x = x - 2; b.y = y; b.w = 4 * this.scale; b.h = 14 * this.scale;
-        b.vx = vx * 500; b.vy = vy;
-        b.color = color;
+        b.x = x - 2; b.y = y; b.w = 4 * this.scale; b.h = 12 * this.scale;
+        b.vx = vx * 500; b.vy = vy * this.scale; b.color = color;
         b.damage = damage;
         b.isHoming = this.config.ship.id === 'phantom'; 
         b.isExplosive = this.config.ship.id === 'striker';
         this.gameState.bullets.push(b);
     }
 
-    // UPDATED: Suporta override de velocidade Y para mirar
-    private spawnEnemyBullet(x: number, y: number, vx: number, speed: number, color: string, damage: number = 1, overrideVy?: number) {
+    private spawnEnemyBullet(x: number, y: number, vx: number, speed: number, color: string) {
         const b = this.enemyBulletPool.get();
         b.x = x; b.y = y;
         b.vx = vx * 300 * this.scale; 
-        
-        if (overrideVy !== undefined) {
-             b.vy = overrideVy * this.scale;
-        } else {
-             b.vy = speed * this.scale; 
-        }
-        
+        b.vy = speed * this.scale; 
         b.color = color;
-        b.damage = damage;
         this.gameState.enemyBullets.push(b);
     }
 
     private spawnEnemy() {
         const e = this.enemyPool.get();
+        // Spawner Reset Logic
         resetEnemy(e, this.gameState.waveCount, this.width, this.height, this.scale, this.rng);
+        
         this.gameState.enemies.push(e);
         this.gameState.waveEnemiesToSpawn--;
     }
 
-    private spawnBoss(forcedType?: BossType) {
+    private spawnBoss() {
         const wave = this.gameState.waveCount;
         
-        let type: BossType = 'observer';
-        if (forcedType) {
-            type = forcedType;
-        } else {
-            const bossIndex = (Math.floor(wave / 5) - 1) % 3;
-            const types: BossType[] = ['observer', 'titan', 'wraith'];
-            type = types[bossIndex] || 'observer';
-        }
+        // Cycle: Wave 5->Observer, 10->Titan, 15->Wraith
+        const bossIndex = (Math.floor(wave / 5) - 1) % 3;
+        const types: BossType[] = ['observer', 'titan', 'wraith'];
+        const type = types[bossIndex] || 'observer';
     
         let hp = 500 * (1 + wave * 0.2);
-        if (forcedType && wave < 5) hp = 1500;
-
         if (type === 'titan') hp *= 1.5;
         if (type === 'wraith') hp *= 0.7;
     
@@ -737,10 +656,13 @@ export class GameController {
         this.gameState.waveStatus = 'announcing';
         this.gameState.announcementTimer = 3.0;
         this.gameState.enemySpawnTimer = 0;
+
+        // Difficulty / Sector Rotation
         const sectorCycle = Math.floor((this.gameState.waveCount - 1) / 5) % 4;
         const sectors = ['void', 'nebula', 'asteroid_belt', 'solar_storm'];
         this.gameState.currentSector = sectors[sectorCycle] as any;
 
+        // Spawn Boss every 5 waves
         if (this.gameState.waveCount % 5 === 0) {
             this.spawnBoss();
         } else {
@@ -794,20 +716,14 @@ export class GameController {
     }
 
     private handleEnemyKill(e: Enemy, idx: number) {
-        // RATE DE SCRAP (Sucata)
-        if (this.random() > 0.4) { 
+        // Drop System
+        if (this.random() > 0.6) {
             const s = this.scrapPool.get();
-            s.x = e.x + e.width/2 - 4; 
-            s.y = e.y + e.height/2; 
-            s.value = 10 + this.gameState.waveCount; 
-            s.vx = (this.random()-0.5)*200; 
-            s.vy = -200 - (this.random() * 100); 
-            s.size = 12 * this.scale;
+            s.x = e.x; s.y = e.y; s.value = 10 + this.gameState.waveCount; s.vx = (this.random()-0.5)*100; s.vy = -100; s.size = 8 * this.scale;
             this.gameState.scraps.push(s);
         }
         
-        // RATE DE POWERUPS - 100% como solicitado
-        if (this.random() > -1) {
+        if (this.random() > 0.95) {
             const p = this.powerupPool.get();
             p.x = e.x; p.y = e.y; p.size = 20 * this.scale; p.vx = 0; p.vy = 50;
             const types: PowerUpType[] = ['triple_shot', 'rapid_fire', 'shield', 'battery', 'damage'];
@@ -839,6 +755,8 @@ export class GameController {
         this.gameState.gameScore += 5000;
         this.gameState.scrapCollected += 500;
         this.player.energy = 100;
+        
+        // Clear bullets
         this.gameState.enemyBullets.forEach(b => b.active = false);
 
         sfx.explosion();
@@ -906,6 +824,7 @@ export class GameController {
         const height = this.height;
         const state = this.gameState;
 
+        // Shake Effect
         let dx = 0, dy = 0;
         if (state.shake > 0) {
             dx = (Math.random() - 0.5) * state.shake;
@@ -915,18 +834,12 @@ export class GameController {
         ctx.save();
         ctx.translate(dx, dy);
 
+        // Background
         let gridOffset = (timestamp / 1000 * 60) % 60;
         drawGrid(ctx, width, height, gridOffset, state.currentSector);
         drawStars(ctx, state.stars, state.currentSector);
-        
-        if (this.shockwaveRadius > 0) {
-            ctx.beginPath();
-            ctx.arc(this.player.x + this.player.width/2, this.player.y + this.player.height/2, this.shockwaveRadius, 0, Math.PI * 2);
-            ctx.strokeStyle = `rgba(0, 255, 255, ${1 - this.shockwaveRadius / Math.max(width, height)})`;
-            ctx.lineWidth = 15;
-            ctx.stroke();
-        }
 
+        // Objects
         state.scraps.forEach(s => { if(s.active) drawScrap(ctx, s); });
         state.powerups.forEach(p => { if(p.active) drawPowerUp(ctx, p, this.scale, timestamp); });
         
@@ -941,6 +854,7 @@ export class GameController {
         drawParticles(ctx, state.particles);
         drawFloatingTexts(ctx, state.floatingTexts);
 
+        // Warning Overlay (Solar Flare)
         if (state.currentSector === 'solar_storm' && state.isSolarFlaring) {
              ctx.fillStyle = `rgba(255, 50, 0, ${0.1 + Math.sin(timestamp/100)*0.05})`;
              ctx.fillRect(0,0,width,height);

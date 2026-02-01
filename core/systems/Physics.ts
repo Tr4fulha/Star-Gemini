@@ -11,73 +11,52 @@ export const updatePlayerMovement = (
   height: number, 
   scale: number
 ) => {
-    // --- FÍSICA ARCADE (Drift & Momentum) ---
-    
-    // Aceleração alta para resposta rápida
-    const BASE_ACCEL = 3200 * scale; 
-    
-    // Fator de atrito base (para 60fps). 
-    // Valores menores que 1.0 criam o efeito de deslizamento.
-    const FRICTION_FACTOR = 0.92; 
-    
-    // Ajuste de atrito independente do frame rate: v *= friction^(dt * 60)
-    const timeAdjustedFriction = Math.pow(FRICTION_FACTOR, dt * 60);
+    const ACCEL = 10000 * (shipConfig.speed / 5);
+    const DAMPING = 12.0; 
 
-    let speedMult = shipConfig.speed / 5; 
-    if (shipConfig.id === 'phantom') speedMult *= 1.2;
-    // Boost de velocidade durante tiro rápido para sensação de "Overdrive"
-    if (player.timers.rapid_fire > 0) speedMult *= 1.1; 
-
-    const accelForce = BASE_ACCEL * speedMult;
-
-    // 1. Processar Input
     let ax = 0, ay = 0;
     if (keys['w'] || keys['ArrowUp']) ay = -1; 
     if (keys['s'] || keys['ArrowDown']) ay = 1;
     if (keys['a'] || keys['ArrowLeft']) ax = -1; 
     if (keys['d'] || keys['ArrowRight']) ax = 1;
+    if (touchInput.x !== 0 || touchInput.y !== 0) { ax = touchInput.x; ay = touchInput.y; }
     
-    if (touchInput.x !== 0 || touchInput.y !== 0) { 
-        ax = touchInput.x; 
-        ay = touchInput.y; 
-    } else if (ax !== 0 && ay !== 0) {
-        // Normalizar vetor do teclado para não correr mais rápido na diagonal
-        const len = Math.sqrt(ax*ax + ay*ay);
-        ax /= len; ay /= len;
+    player.vx += ax * ACCEL * dt; 
+    player.vy += ay * ACCEL * dt;
+    player.vx -= player.vx * DAMPING * dt;
+    player.vy -= player.vy * DAMPING * dt;
+
+    player.x += player.vx * dt; 
+    
+    // CORREÇÃO: Permitir que o jogador entre voando na tela.
+    // Só aplica o clamp de Y se ele já estiver "dentro" ou se estiver tentando sair por cima.
+    // Se ele estiver abaixo da tela (entrada), deixamos ele subir.
+    if (player.y < height) {
+         player.y += player.vy * dt;
+         // Clamping boundaries (Normal gameplay)
+         const margin = 20 * scale;
+         player.y = Math.max(height * 0.5, Math.min(height - player.height - margin, player.y));
+    } else {
+         // Entrance Animation: Fly up automatically
+         player.y -= 400 * dt * scale;
+         // Se o jogador pressionar para cima enquanto entra, ajuda
+         player.y += Math.min(0, player.vy * dt); 
     }
 
-    // 2. Aplicar Aceleração
-    player.vx += ax * accelForce * dt;
-    player.vy += ay * accelForce * dt;
-
-    // 3. Aplicar Atrito Multiplicativo (Drift Suave)
-    player.vx *= timeAdjustedFriction;
-    player.vy *= timeAdjustedFriction;
-
-    // 4. Atualizar Posição
-    player.x += player.vx * dt;
-    player.y += player.vy * dt;
-
-    // 5. Inclinação Visual (Tilt) baseada na velocidade lateral
-    const targetLean = (player.vx / (1000 * scale)) * 0.5;
-    player.lean += (targetLean - player.lean) * 10 * dt;
-
-    // 6. Manter dentro da tela
-    if (player.x < 0) { player.x = 0; player.vx = 0; }
-    if (player.x > width - player.width) { player.x = width - player.width; player.vx = 0; }
+    player.lean = player.vx * 0.0015;
     
-    // Zona segura inferior (30% da tela para baixo)
-    const topLimit = height * 0.3; 
-    if (player.y < topLimit) { player.y = topLimit; player.vy = 0; }
-    if (player.y > height - player.height) { player.y = height - player.height; player.vy = 0; }
+    // Clamping X (sempre ativo)
+    const margin = 20 * scale;
+    player.x = Math.max(margin, Math.min(width - player.width - margin, player.x));
 
-    // Atualizar Timers
     if (player.hitFlash > 0) player.hitFlash -= dt;
     if (player.invulnerable > 0) player.invulnerable -= dt;
     
+    // Timers de powerups
     Object.keys(player.timers).forEach(k => {
-        const key = k as keyof typeof player.timers;
-        if (player.timers[key] > 0) player.timers[key] -= dt;
+        if (player.timers[k as keyof typeof player.timers] > 0) {
+            player.timers[k as keyof typeof player.timers] -= dt;
+        }
     });
 };
 
@@ -86,146 +65,144 @@ export const updateScraps = (scraps: any[], player: PlayerState, dt: number, hei
         const s = scraps[i];
         if (!s.active) continue;
 
-        // Gravidade leve espacial
-        s.vy += 150 * dt;
-
         const dx = (player.x + player.width/2) - s.x;
         const dy = (player.y + player.height/2) - s.y;
         const dist = Math.sqrt(dx*dx + dy*dy);
         
-        const magnetRange = autoMagnet ? 2000 : 300 * scale;
-        
-        if (dist < magnetRange) {
-            const force = autoMagnet ? 15 : 8; 
-            // Interpolação forte em direção ao player (Imã)
-            s.x += (dx / dist) * force * 60 * dt * scale;
-            s.y += (dy / dist) * force * 60 * dt * scale;
-        }
+        const magnetRange = autoMagnet ? 2000 : 250 * scale;
+        const isAttracted = dist < magnetRange;
 
+        if (isAttracted) {
+            const force = autoMagnet ? 4500 : 3500;
+            const ang = Math.atan2(dy, dx);
+            const strength = force * (1 + (1 / (dist + 50)) * 200);
+            
+            s.vx += Math.cos(ang) * strength * dt; 
+            s.vy += Math.sin(ang) * strength * dt;
+            
+            s.vx *= 0.95; 
+            s.vy *= 0.95;
+        } else {
+            s.y += (150 * dt); // Queda natural
+        }
+        
         s.x += s.vx * dt; 
         s.y += s.vy * dt; 
 
-        if (s.y > height + 100) s.active = false;
+        if (s.y > height + 200 || s.y < -500) {
+            s.active = false;
+        }
     }
 };
 
-export const updateEntities = (gameState: GameState, player: PlayerState, dt: number, width: number, height: number, scale: number, middleLine: number) => {
-    // --- PLAYER BULLETS ---
+export const updateEntities = (gameState: GameState, dt: number, width: number, height: number, scale: number, middleLine: number) => {
+    // Bullets (Player)
     for (let i = 0; i < gameState.bullets.length; i++) {
         const b = gameState.bullets[i];
         if (!b.active) continue;
         
-        // Homing Logic (Phantom Skill / Mod)
+        // Lógica Homing (Phantom)
         if (b.isHoming) {
-            let closest = null, closeDist = 600 * scale;
-            for(const e of gameState.enemies) {
-                if(!e.active || e.y > b.y) continue;
-                const d = Math.sqrt((e.x-b.x)**2 + (e.y-b.y)**2);
-                if(d < closeDist) { closeDist = d; closest = e; }
+            let closestDist = 9999;
+            let target = null;
+            
+            for(let j=0; j<gameState.enemies.length; j++) {
+                const e = gameState.enemies[j];
+                if (!e.active || e.y > b.y) continue; 
+                
+                const dx = e.x - b.x;
+                const dy = e.y - b.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                
+                if (dist < closestDist && dist < 400 * scale) { 
+                    closestDist = dist;
+                    target = e;
+                }
             }
-            if(closest) {
-                const dx = (closest.x + closest.width/2) - b.x;
-                b.vx = (b.vx || 0) + (dx * 10 * dt); 
+            
+            if (target) {
+                const dx = (target.x + target.width/2) - b.x;
+                const targetVx = dx * 5.0; // Steering force
+                b.vx = (b.vx || 0) + (targetVx - (b.vx||0)) * 5.0 * dt;
             }
         }
 
         b.y += b.vy * dt;
         if (b.vx) b.x += b.vx * dt;
 
-        if (b.y < -50 || b.y > height + 50 || b.x < -100 || b.x > width + 100) b.active = false;
+        if (b.y < -100 || b.y > height + 100) {
+            b.active = false;
+        }
     }
 
-    // --- ENEMY BULLETS ---
+    // Bullets (Enemy)
     for (let i = 0; i < gameState.enemyBullets.length; i++) {
         const b = gameState.enemyBullets[i];
         if (!b.active) continue;
         
-        // Homing (Mísseis Inimigos Guiados)
-        if (b.isHoming) {
-             const dx = (player.x + player.width/2) - b.x;
-             const dy = (player.y + player.height/2) - b.y;
-             const angle = Math.atan2(dy, dx);
-             
-             const currentVx = b.vx || 0;
-             const currentVy = b.vy;
-             const turnSpeed = 5 * dt;
-             
-             b.vx = currentVx * (1 - turnSpeed) + Math.cos(angle) * 300 * scale * turnSpeed;
-             b.vy = currentVy * (1 - turnSpeed) + Math.sin(angle) * 300 * scale * turnSpeed;
-        }
-
         b.y += b.vy * dt;
         b.x += (b.vx || 0) * dt;
 
-        if (b.y < -100 || b.y > height + 100 || b.x < -100 || b.x > width + 100) b.active = false;
+        if (b.y < -100 || b.y > height + 100 || b.x < -100 || b.x > width + 100) {
+            b.active = false;
+        }
     }
 
-    // --- INIMIGOS (IA SENOIDAL / ORGÂNICA) ---
-    const playerCx = player.x + player.width/2;
-    const combatZoneBottom = height * 0.6; // Zona onde inimigos flutuam
-
+    // Inimigos - Movimento Orgânico
     for (let i = 0; i < gameState.enemies.length; i++) {
         const e = gameState.enemies[i];
         if (!e.active) continue;
+
         if (e.hitFlash > 0) e.hitFlash -= dt;
-
-        // Timer baseado no tempo absoluto para sincronia de onda perfeita
-        const timeFactor = Date.now() / 1000;
-
+        
         if (e.isEntering) {
-            // Entrada rápida
-            e.y += 400 * dt * scale;
-            if (e.y >= 50 * scale) e.isEntering = false;
-        } else {
-            // Behavioral Logic
-            let speed = 200 * scale; 
-
-            if (e.type === 'scout') {
-                // SINE WAVE (Padrão Clássico)
-                // Movimento vertical em onda + Movimento horizontal amplo
-                e.y += Math.sin(timeFactor * 3) * (speed * 0.5) * dt; 
-                e.x += Math.sin(timeFactor * 4) * (250 * scale) * dt; 
-                
-                // Avanço constante para baixo lento
-                if(e.y < combatZoneBottom) e.y += 30 * dt;
-
-            } else if (e.type === 'fighter') {
-                // TRACKING (Persegue o X do jogador)
-                const trackSpeed = 180 * scale;
-                if (e.x + e.width/2 < playerCx - 10) e.x += trackSpeed * dt;
-                else if (e.x + e.width/2 > playerCx + 10) e.x -= trackSpeed * dt;
-                
-                // Hover vertical suave
-                e.y += Math.cos(timeFactor * 2) * (50 * scale) * dt;
-
-            } else if (e.type === 'kamikaze') {
-                // MERGULHO AGRESSIVO
-                const dx = playerCx - (e.x + e.width/2);
-                e.x += Math.sign(dx) * 300 * scale * dt;
-                e.y += 600 * scale * dt; // Desce muito rápido
-
-            } else {
-                // PADRÃO (Heavy/Sniper/Tank)
-                // Movimento de "Oito" lento
-                e.y += Math.sin(timeFactor) * 20 * scale * dt;
-                if (e.y < 100 * scale) e.y += 30 * dt;
-            }
-
-            // Clamping Lateral
-            if (e.x < 0) e.x = 0;
-            if (e.x > width - e.width) e.x = width - e.width;
+            const dist = e.targetY - e.y;
+            const speed = Math.min(800 * scale, Math.abs(dist) * 3.5); 
+            e.y += speed * dt * Math.sign(dist);
             
-            // Limite inferior (exceto Kamikaze/Asteroid que passam direto)
-            if (e.type !== 'kamikaze' && e.type !== 'asteroid' && e.y > combatZoneBottom) {
-                e.y = combatZoneBottom;
+            if (Math.abs(dist) < 5) {
+                e.y = e.targetY;
+                e.isEntering = false;
             }
+        } else {
+            // Steering Orgânico (Suavização de trajetória)
+            // Em vez de bater e voltar instantaneamente (vx *= -1), aplicamos uma força contrária suave
+            if (e.type !== 'kamikaze' && e.type !== 'asteroid') {
+                const boundaryMargin = 30 * scale;
+                const steerForce = 800 * scale; 
+
+                // Paredes laterais
+                if (e.x < boundaryMargin) {
+                    e.vx += steerForce * dt; // Empurra para direita
+                } else if (e.x > width - e.width - boundaryMargin) {
+                    e.vx -= steerForce * dt; // Empurra para esquerda
+                }
+
+                // Paredes verticais (zona de combate)
+                const topMargin = 40 * scale;
+                if (e.y > middleLine + 100) {
+                    e.vy -= steerForce * dt;
+                } else if (e.y < topMargin) {
+                    e.vy += steerForce * dt;
+                }
+                
+                // Limite de velocidade para não acumular força infinita
+                const maxSpeed = 300 * scale;
+                e.vx = Math.max(-maxSpeed, Math.min(maxSpeed, e.vx));
+                e.vy = Math.max(-maxSpeed * 0.5, Math.min(maxSpeed * 0.5, e.vy)); // Movimento vertical mais contido
+            }
+
+            e.x += e.vx * dt; 
+            e.y += e.vy * dt;
         }
 
-        // Remover se sair da tela
-        if (e.y > height + 200) e.active = false;
+        // Culling
+        if (e.y > height + 500) {
+            e.active = false;
+        }
     }
 
-    // Powerups & Particles
+    // Powerups
     for (let i = 0; i < gameState.powerups.length; i++) {
         const p = gameState.powerups[i];
         if (!p.active) continue;
@@ -233,6 +210,7 @@ export const updateEntities = (gameState: GameState, player: PlayerState, dt: nu
         if (p.y > height + 100) p.active = false;
     }
 
+    // Particles
     for (let i = 0; i < gameState.particles.length; i++) {
         const p = gameState.particles[i];
         if (!p.active) continue;
@@ -242,6 +220,7 @@ export const updateEntities = (gameState: GameState, player: PlayerState, dt: nu
         if (p.life <= 0) p.active = false;
     }
 
+    // Floating Texts
     for (let i = 0; i < gameState.floatingTexts.length; i++) {
         const ft = gameState.floatingTexts[i];
         if (!ft.active) continue;
@@ -250,6 +229,7 @@ export const updateEntities = (gameState: GameState, player: PlayerState, dt: nu
         if (ft.life <= 0) ft.active = false;
     }
 
+    // Stars
     gameState.stars.forEach(s => {
         s.y += s.speed * dt;
         if (s.y > height) { s.y = -20; s.x = Math.random() * width; }
@@ -262,22 +242,28 @@ export const updateBoss = (boss: any, dt: number, width: number, scale: number, 
     
     if (boss.entering) {
         boss.y += (boss.targetY - boss.y) * 2.0 * dt;
-        if (Math.abs(boss.y - boss.targetY) < 5) {
+        if (Math.abs(boss.y - boss.targetY) < 2) {
             boss.y = boss.targetY;
             boss.entering = false;
         }
     } else {
-        // Padrão Lissajous (Símbolo do Infinito)
-        const t = timestamp / 1000;
+        const margin = 20 * scale;
+        const minX = margin;
+        const maxX = width - boss.width - margin;
         
-        // Movimento lateral amplo
-        boss.x += Math.cos(t * 1.0) * (120 * scale) * dt;
+        if (maxX <= minX) {
+            boss.x = (width / 2) - (boss.width / 2);
+        } else {
+            boss.x += boss.moveDir * 160 * dt;
+            if (boss.x < minX) {
+                boss.x = minX;
+                boss.moveDir = 1;
+            } else if (boss.x > maxX) {
+                boss.x = maxX;
+                boss.moveDir = -1;
+            }
+        }
         
-        // Movimento vertical leve
-        boss.y = boss.targetY + Math.sin(t * 1.5) * (40 * scale);
-
-        // Clamping
-        if (boss.x < 20) boss.x = 20;
-        if (boss.x > width - boss.width - 20) boss.x = width - boss.width - 20;
+        boss.y = boss.targetY + Math.sin(timestamp / 650) * (30 * scale);
     }
 };

@@ -45,6 +45,9 @@ export const TRANSLATIONS: Record<Language, any> = {
     hud_opacity: "OPACIDADE GERAL",
     hud_scale: "ESCALA GERAL",
     left_handed: "MODO CANHOTO",
+    quit: "SAIR DA MISSÃO",
+    pause: "PAUSA TÁTICA",
+    continue: "CONTINUAR",
     
     // Categorias de Opções
     cat_audio: "ÁUDIO",
@@ -196,6 +199,9 @@ export const TRANSLATIONS: Record<Language, any> = {
     hud_opacity: "GLOBAL OPACITY",
     hud_scale: "GLOBAL SCALE",
     left_handed: "LEFT HANDED",
+    quit: "ABORT MISSION",
+    pause: "TACTICAL PAUSE",
+    continue: "RESUME",
 
     cat_audio: "AUDIO",
     cat_lang: "LANGUAGE",
@@ -344,6 +350,9 @@ export const TRANSLATIONS: Record<Language, any> = {
     hud_opacity: "OPACIDAD GLOBAL",
     hud_scale: "ESCALA GLOBAL",
     left_handed: "MODO ZURDO",
+    quit: "ABORTAR MISIÓN",
+    pause: "PAUSA TÁCTICA",
+    continue: "CONTINUAR",
 
     cat_audio: "AUDIO",
     cat_lang: "IDIOMA",
@@ -415,7 +424,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     modules: {
         vampiric: { 
             name: "MUNICIÓN VAMPÍRICA", 
-            desc: "Nanobots experimentales que sifonan energía residual de enemigos destruidos para reparar el casco. Recupera 1 HP cada 50 bajas confirmadas." 
+            desc: "Nanobots experimentais que sifonan energía residual de enemigos destruidos para reparar el casco. Recupera 1 HP cada 50 bajas confirmadas." 
         },
         berzerk: { 
             name: "MOTOR BERSERK", 

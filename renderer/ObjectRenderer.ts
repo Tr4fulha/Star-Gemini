@@ -2,16 +2,30 @@
 import { Bullet, Scrap, PowerUp, Particle, PowerUpType, FloatingText } from '../types';
 
 export const drawBullet = (ctx: CanvasRenderingContext2D, b: Bullet) => {
+    ctx.save();
+    // Glow core
+    ctx.shadowBlur = 5;
+    ctx.shadowColor = b.color;
     ctx.fillStyle = '#fff'; 
-    ctx.fillRect(b.x + 2, b.y, b.w - 4, b.h);
+    
+    // Ensure min width/height even if scaled down
+    const w = Math.max(3, b.w);
+    const h = Math.max(8, b.h);
+    
+    // Draw white center
+    ctx.fillRect(b.x + (w/4), b.y, w/2, h);
+    
+    // Draw colored outer
+    ctx.globalAlpha = 0.7;
     ctx.fillStyle = b.color;
-    ctx.globalAlpha = 0.4;
-    ctx.fillRect(b.x, b.y, b.w, b.h);
-    ctx.globalAlpha = 1.0;
+    ctx.fillRect(b.x, b.y, w, h);
+    
+    ctx.restore();
 };
 
 export const drawEnemyBullet = (ctx: CanvasRenderingContext2D, eb: Bullet, scale: number) => {
-    const radius = 7 * scale;
+    const radius = Math.max(4, 7 * scale); // Tamanho mínimo de segurança
+    ctx.save();
     ctx.beginPath(); 
     ctx.arc(eb.x, eb.y, radius, 0, Math.PI*2); 
     ctx.fillStyle = '#fff';
@@ -19,22 +33,24 @@ export const drawEnemyBullet = (ctx: CanvasRenderingContext2D, eb: Bullet, scale
     ctx.beginPath();
     ctx.arc(eb.x, eb.y, radius * 1.5, 0, Math.PI*2);
     ctx.fillStyle = eb.color;
-    ctx.globalAlpha = 0.4;
+    ctx.globalAlpha = 0.6;
     ctx.fill();
-    ctx.globalAlpha = 1.0;
+    ctx.restore();
 };
 
 export const drawParticles = (ctx: CanvasRenderingContext2D, particles: Particle[]) => {
+    ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     particles.forEach(p => {
-        ctx.globalAlpha = p.life / p.maxLife;
+        ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
         ctx.fillStyle = p.color;
         ctx.fillRect(p.x, p.y, p.size, p.size);
     });
-    ctx.globalAlpha = 1.0;
+    ctx.restore();
 };
 
 export const drawFloatingTexts = (ctx: CanvasRenderingContext2D, texts: FloatingText[]) => {
+    ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     texts.forEach(ft => {
@@ -52,7 +68,7 @@ export const drawFloatingTexts = (ctx: CanvasRenderingContext2D, texts: Floating
         ctx.fillStyle = ft.color;
         ctx.fillText(ft.text, ft.x, ft.y);
     });
-    ctx.globalAlpha = 1.0;
+    ctx.restore();
 };
 
 export const drawScrap = (ctx: CanvasRenderingContext2D, s: Scrap) => {
