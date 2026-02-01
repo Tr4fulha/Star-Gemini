@@ -29,9 +29,8 @@ interface GameContextType {
   handleGameOver: (result: GameResult) => void;
   launchGame: (ship: ShipConfig) => void;
   startDailyChallenge: () => void;
-  checkBootSequence: () => void; 
+  checkChangelog: () => void;
   markVersionAsSeen: () => void;
-  completeTutorial: () => void;
   retryGame: () => void;
   goToMenu: () => void;
 }
@@ -51,7 +50,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     maxWave: 0,
     language: 'pt',
     lastSeenVersion: '0.0.0',
-    tutorialCompleted: false,
     hudSettings: {
         opacity: 0.7,
         scale: 1.0,
@@ -269,23 +267,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setScreen('game');
   };
 
-  // Logic to determine what screen to show after Splash
-  const checkBootSequence = () => {
-    // Se o nome ainda for o padrão 'ROOKIE' ou vazio, manda para Input de Nome
-    if (!playerData.username || playerData.username === 'ROOKIE') {
-        setScreen('name-input');
-    } 
-    // Se não completou o tutorial, manda para Tutorial
-    else if (!playerData.tutorialCompleted) {
-        setScreen('tutorial');
-    } 
-    // Se tem atualização nova, mostra changelog
-    else if (playerData.lastSeenVersion !== APP_VERSION) {
-        setScreen('changelog');
-    } 
-    // Senão, menu principal
-    else {
-        setScreen('menu');
+  const checkChangelog = () => {
+    if (playerData.lastSeenVersion !== APP_VERSION) {
+      setScreen('changelog');
+    } else {
+      setScreen('menu');
     }
   };
 
@@ -295,13 +281,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     savePlayerData(newData);
     setScreen('menu');
   };
-
-  const completeTutorial = () => {
-      const newData = { ...playerData, tutorialCompleted: true };
-      setPlayerData(newData);
-      savePlayerData(newData);
-      setScreen('ship-select');
-  }
 
   const retryGame = () => {
       if (gameMode === 'daily_challenge') {
@@ -319,7 +298,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       playerData, isOnline, loading, screen, selectedShip, lastGameResult, gameMode, dailyConfig,
       setScreen, updateName, setLanguage, updateHudSettings, updateAudioSettings, 
       buyUpgrade, buyModule, equipModule, unequipModule, handleGameOver, launchGame, startDailyChallenge,
-      checkBootSequence, markVersionAsSeen, completeTutorial, retryGame, goToMenu
+      checkChangelog, markVersionAsSeen, retryGame, goToMenu
     }}>
       {children}
     </GameContext.Provider>

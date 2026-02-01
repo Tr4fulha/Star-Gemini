@@ -28,7 +28,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     back: "VOLTAR",
     changelog_title: "REGISTROS DE BORDO",
     understand: "ENTENDIDO",
-    hall_of_fame: "MURAL DA FAMA",
+    hall_of_fame: "HALL DA FAMA",
     ultra_ready: "ULTRA PRONTO",
     enemy_sector: "SETOR INIMIGO",
     pilot_sector: "SETOR DO PILOTO",
@@ -45,41 +45,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     hud_opacity: "OPACIDADE GERAL",
     hud_scale: "ESCALA GERAL",
     left_handed: "MODO CANHOTO",
-    quit: "SAIR DA MISSÃO",
-    pause: "PAUSA TÁTICA",
-    continue: "CONTINUAR",
     
-    // Novo
-    enter_name_title: "BEM-VINDO PILOTO",
-    enter_name_sub: "INSIRA SUA IDENTIFICAÇÃO",
-    confirm_pilot: "CONFIRMAR",
-    replay_tutorial: "REVER TUTORIAL",
-
-    // Tutorial
-    tutorial: {
-        welcome_title: "BEM-VINDO PILOTO",
-        welcome_text: "Sistemas inicializando. Antes de enviá-lo para o vazio, precisamos calibrar seus sistemas de navegação e combate.",
-        start_cal: "INICIAR CALIBRAÇÃO",
-        nav_title: "NAVEGAÇÃO",
-        move_msg: "MOVA-SE PARA CONTINUAR",
-        pc_move: "WASD / SETAS",
-        mob_move: "ARRASTE NO LADO ESQUERDO",
-        wep_title: "ARMAS",
-        fire_msg: "ATIRE PARA CONTINUAR",
-        pc_fire: "ESPAÇO (AUTO)",
-        mob_fire: "TOQUE NO LADO DIREITO",
-        ready_btn: "ESTOU PRONTO",
-        skip: "PULAR TUTORIAL",
-        objs: {
-            scrap_title: "COLETAR SUCATA",
-            scrap_desc: "Destrua inimigos para obter Sucata. Use na Loja para upgrades.",
-            ult_title: "PODER SUPREMO",
-            ult_desc: "Mate inimigos para carregar Energia. Use o botão ULTRA para limpar a tela.",
-            surv_title: "SOBREVIVA",
-            surv_desc: "Inimigos ficam mais fortes a cada onda. Chefes aparecem a cada 5 ondas."
-        }
-    },
-
     // Categorias de Opções
     cat_audio: "ÁUDIO",
     cat_lang: "IDIOMA",
@@ -153,7 +119,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     modules: {
         vampiric: { 
             name: "MUNIÇÃO VAMPÍRICA", 
-            desc: "Nanobots experimentais que sifonam energia residual de inimigos destruidos para reparar a integridade do casco. Recupera 1 HP a cada 50 abates confirmados." 
+            desc: "Nanobots experimentais que sifonam energia residual de inimigos destruídos para reparar a integridade do casco. Recupera 1 HP a cada 50 abates confirmados." 
         },
         berzerk: { 
             name: "MOTOR BERSERK", 
@@ -175,14 +141,6 @@ export const TRANSLATIONS: Record<Language, any> = {
       damage: "DANO+"
     },
     changelog: [
-      { version: '2.0.1', changes: [
-          'SISTEMA: Novo fluxo de boas-vindas (Nome -> Tutorial -> Jogo).',
-          'INTERFACE: Adicionada tela de Registro de Piloto.',
-          'OPÇÕES: Adicionado botão "Rever Tutorial".',
-          'CORREÇÃO: Leaderboard Global e Daily Ops agora carregam corretamente.',
-          'TRADUÇÃO: Textos do Mural da Fama e Tutorial localizados.',
-          'DATABASE: Otimização na sincronização de progresso e correções de segurança (RLS).'
-      ]},
       { version: '1.9.9', changes: [
           'REFACTOR: Sistema de Spawner extraído para melhor performance.',
           'DAILY OPS: Garantia de RNG determinístico para justiça competitiva.',
@@ -221,7 +179,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     back: "BACK",
     changelog_title: "LOG RECORDS",
     understand: "UNDERSTOOD",
-    hall_of_fame: "WALL OF FAME",
+    hall_of_fame: "HALL OF FAME",
     ultra_ready: "ULTRA READY",
     enemy_sector: "ENEMY SECTOR",
     pilot_sector: "PILOT SECTOR",
@@ -238,40 +196,6 @@ export const TRANSLATIONS: Record<Language, any> = {
     hud_opacity: "GLOBAL OPACITY",
     hud_scale: "GLOBAL SCALE",
     left_handed: "LEFT HANDED",
-    quit: "ABORT MISSION",
-    pause: "TACTICAL PAUSE",
-    continue: "RESUME",
-
-    // Novo
-    enter_name_title: "WELCOME PILOT",
-    enter_name_sub: "ENTER IDENTIFICATION",
-    confirm_pilot: "CONFIRM",
-    replay_tutorial: "REPLAY TUTORIAL",
-
-    // Tutorial
-    tutorial: {
-        welcome_title: "WELCOME PILOT",
-        welcome_text: "Systems initializing. Before we send you to the void, we need to calibrate your navigation and weapon systems.",
-        start_cal: "START CALIBRATION",
-        nav_title: "NAVIGATION",
-        move_msg: "MOVE TO CONTINUE",
-        pc_move: "WASD / ARROWS",
-        mob_move: "DRAG LEFT SIDE",
-        wep_title: "WEAPONS",
-        fire_msg: "FIRE TO CONTINUE",
-        pc_fire: "SPACEBAR (AUTO)",
-        mob_fire: "TAP RIGHT SIDE",
-        ready_btn: "I AM READY",
-        skip: "SKIP TUTORIAL",
-        objs: {
-            scrap_title: "COLLECT SCRAP",
-            scrap_desc: "Destroy enemies to drop Scrap. Use it in the Shop to buy upgrades.",
-            ult_title: "ULTIMATE POWER",
-            ult_desc: "Kill enemies to charge Energy. Use the ULTRA button to clear the screen.",
-            surv_title: "SURVIVE",
-            surv_desc: "Enemies get stronger every wave. Bosses appear every 5 waves."
-        }
-    },
 
     cat_audio: "AUDIO",
     cat_lang: "LANGUAGE",
@@ -365,14 +289,6 @@ export const TRANSLATIONS: Record<Language, any> = {
       damage: "DAMAGE+"
     },
     changelog: [
-      { version: '2.0.1', changes: [
-          'SYSTEM: New welcome flow (Name -> Tutorial -> Game).',
-          'UI: Added Pilot Registration screen.',
-          'OPTIONS: Added "Replay Tutorial" button.',
-          'FIX: Global Leaderboard and Daily Ops loading issues resolved.',
-          'LOCALIZATION: Fixed Wall of Fame and Tutorial translations.',
-          'DATABASE: Optimized progress synchronization and security fixes (RLS).'
-      ]},
       { version: '1.9.9', changes: [
           'REFACTOR: Extracted Spawner System for better performance.',
           'DAILY OPS: Ensured deterministic RNG for competitive fairness.',
@@ -411,7 +327,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     back: "VOLVER",
     changelog_title: "REGISTROS",
     understand: "ENTENDIDO",
-    hall_of_fame: "MURO DE LA FAMA",
+    hall_of_fame: "HALL DE LA FAMA",
     ultra_ready: "ULTRA LISTO",
     enemy_sector: "SECTOR ENEMIGO",
     pilot_sector: "SECTOR DEL PILOTO",
@@ -428,40 +344,6 @@ export const TRANSLATIONS: Record<Language, any> = {
     hud_opacity: "OPACIDAD GLOBAL",
     hud_scale: "ESCALA GLOBAL",
     left_handed: "MODO ZURDO",
-    quit: "ABORTAR MISIÓN",
-    pause: "PAUSA TÁCTICA",
-    continue: "CONTINUAR",
-    
-    // Novo
-    enter_name_title: "BIENVENIDO PILOTO",
-    enter_name_sub: "INGRESE SU IDENTIFICACIÓN",
-    confirm_pilot: "CONFIRMAR",
-    replay_tutorial: "REPETIR TUTORIAL",
-
-    // Tutorial
-    tutorial: {
-        welcome_title: "BIENVENIDO PILOTO",
-        welcome_text: "Sistemas iniciando. Antes de enviarlo al vacío, necesitamos calibrar sus sistemas de navegación y combate.",
-        start_cal: "INICIAR CALIBRACIÓN",
-        nav_title: "NAVEGACIÓN",
-        move_msg: "MOVER PARA CONTINUAR",
-        pc_move: "WASD / FLECHAS",
-        mob_move: "ARRASTRE LADO IZQUIERDO",
-        wep_title: "ARMAS",
-        fire_msg: "DISPARAR PARA CONTINUAR",
-        pc_fire: "ESPACIO (AUTO)",
-        mob_fire: "TOQUE LADO DERECHO",
-        ready_btn: "ESTOY LISTO",
-        skip: "SALTAR TUTORIAL",
-        objs: {
-            scrap_title: "RECOLECTAR CHATARRA",
-            scrap_desc: "Destruye enemigos para obtener Chatarra. Úsala en la Tienda para mejoras.",
-            ult_title: "PODER SUPREMO",
-            ult_desc: "Mata enemigos para cargar Energía. Usa el botón ULTRA para limpiar la pantalla.",
-            surv_title: "SOBREVIVIR",
-            surv_desc: "Los enemigos se vuelven más fuertes. Los jefes aparecen cada 5 oleadas."
-        }
-    },
 
     cat_audio: "AUDIO",
     cat_lang: "IDIOMA",
@@ -533,7 +415,7 @@ export const TRANSLATIONS: Record<Language, any> = {
     modules: {
         vampiric: { 
             name: "MUNICIÓN VAMPÍRICA", 
-            desc: "Nanobots experimentais que sifonan energía residual de enemigos destruidos para reparar el casco. Recupera 1 HP cada 50 bajas confirmadas." 
+            desc: "Nanobots experimentales que sifonan energía residual de enemigos destruidos para reparar el casco. Recupera 1 HP cada 50 bajas confirmadas." 
         },
         berzerk: { 
             name: "MOTOR BERSERK", 
@@ -555,14 +437,6 @@ export const TRANSLATIONS: Record<Language, any> = {
       damage: "DAÑO+"
     },
     changelog: [
-      { version: '2.0.1', changes: [
-          'SISTEMA: Nuevo flujo de bienvenida (Nombre -> Tutorial -> Juego).',
-          'INTERFAZ: Nueva pantalla de Registro de Piloto.',
-          'OPCIONES: Botón "Repetir Tutorial" añadido.',
-          'CORRECCIÓN: Solucionados problemas de carga del Ranking Global y Daily Ops.',
-          'TRADUCCIÓN: Textos del Muro de la Fama y Tutorial localizados.',
-          'BASE DE DATOS: Sincronización de progreso optimizada y correcciones de seguridad.'
-      ]},
       { version: '1.9.9', changes: [
           'REFACTOR: Sistema de Spawner extraído para mejor rendimiento.',
           'DAILY OPS: RNG determinístico garantizado.',

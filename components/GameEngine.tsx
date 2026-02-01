@@ -7,7 +7,7 @@ import { GameController } from '../core/GameController';
 import { GameUiData, GameResult } from '../types';
 
 export const GameEngine: React.FC = () => {
-  const { selectedShip: ship, playerData: { inventory, modules, language, hudSettings }, handleGameOver, gameMode, dailyConfig, goToMenu } = useGame();
+  const { selectedShip: ship, playerData: { inventory, modules, language, hudSettings }, handleGameOver, gameMode, dailyConfig } = useGame();
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const controllerRef = useRef<GameController | null>(null);
@@ -36,12 +36,6 @@ export const GameEngine: React.FC = () => {
   // Inicialização do Controller e Eventos
   useEffect(() => {
       if (!canvasRef.current) return;
-
-      // CRITICAL FIX: Definir o tamanho do canvas ANTES de criar o controller
-      // Isso garante que estrelas, jogador e balas nasçam nas coordenadas corretas
-      // e não amontoados no 0,0 ou 300,150 padrão.
-      canvasRef.current.width = window.innerWidth;
-      canvasRef.current.height = window.innerHeight;
 
       const controller = new GameController({
           canvas: canvasRef.current,
@@ -86,7 +80,6 @@ export const GameEngine: React.FC = () => {
           }
       };
       window.addEventListener('resize', resize);
-      // Chama o resize uma vez para garantir que a escala (s) esteja correta no controller
       resize();
 
       return () => {
@@ -210,11 +203,9 @@ export const GameEngine: React.FC = () => {
   };
 
   const handleQuit = () => {
-      // CORREÇÃO: Parar o loop do jogo e voltar ao menu diretamente
       if (controllerRef.current) {
-          controllerRef.current.stop();
+          controllerRef.current.triggerPlayerHit(999); 
       }
-      goToMenu();
   };
 
   const stickRef = useRef<HTMLDivElement>(null);
@@ -246,11 +237,11 @@ export const GameEngine: React.FC = () => {
         onContextMenu={(e) => e.preventDefault()}
     >
       {isPaused && !isDead && (
-        <div className="absolute inset-0 z-[200] bg-black/80 flex items-center justify-center backdrop-blur-sm">
-             <div className="bg-[#0a0610] border border-cyan-500/50 p-8 rounded text-center w-80 shadow-[0_0_30px_rgba(6,182,212,0.2)]">
-                 <h2 className="text-4xl text-white font-display italic mb-8 uppercase tracking-widest">{t.pause}</h2>
-                 <button onClick={() => setIsPaused(false)} className="bg-white text-black px-8 py-3 font-bold mb-4 w-full hover:bg-cyan-100 transition-colors skew-x-[-10deg] uppercase">{t.continue}</button>
-                 <button onClick={handleQuit} className="border border-red-500 text-red-500 hover:bg-red-500/10 px-8 py-3 font-bold w-full transition-colors skew-x-[-10deg] uppercase">{t.quit}</button>
+        <div className="absolute inset-0 z-[200] bg-black/80 flex items-center justify-center">
+             <div className="bg-[#0a0610] border border-cyan-500/50 p-8 rounded text-center">
+                 <h2 className="text-4xl text-white font-display italic mb-8">PAUSED</h2>
+                 <button onClick={() => setIsPaused(false)} className="bg-white text-black px-8 py-3 font-bold mb-4 w-full">RESUME</button>
+                 <button onClick={handleQuit} className="border border-red-500 text-red-500 px-8 py-3 font-bold w-full">QUIT</button>
              </div>
         </div>
       )}

@@ -1,5 +1,6 @@
 
-export type Screen = 'menu' | 'shop' | 'options' | 'credits' | 'ship-select' | 'game' | 'game-over' | 'leaderboard' | 'splash' | 'changelog' | 'hud-editor' | 'tutorial' | 'name-input';
+
+export type Screen = 'menu' | 'shop' | 'options' | 'credits' | 'ship-select' | 'game' | 'game-over' | 'leaderboard' | 'splash' | 'changelog' | 'hud-editor';
 
 export type Language = 'pt' | 'en' | 'es';
 
@@ -45,7 +46,6 @@ export interface PlayerData {
   currentXp: number;
   maxWave: number;
   lastSeenVersion?: string;
-  tutorialCompleted?: boolean; // Nova flag
   language: Language;
   hudSettings: HUDSettings;
   audioSettings: AudioSettings;
@@ -68,7 +68,6 @@ export interface Profile {
   current_xp?: number;
   max_wave?: number;
   language?: Language;
-  tutorial_completed?: boolean;
   hud_settings?: HUDSettings;
   audio_settings?: AudioSettings;
   modules?: { inventory: string[], equipped: Record<string, string[]> };
@@ -129,6 +128,7 @@ export type PowerUpType = 'health' | 'triple_shot' | 'rapid_fire' | 'shield' | '
 
 export type EnemyType = 'scout' | 'fighter' | 'asteroid' | 'kamikaze' | 'sniper' | 'tank';
 export type ElementalType = 'none' | 'ice' | 'fire';
+export type BossType = 'observer' | 'titan' | 'wraith';
 
 export interface Particle {
   active: boolean;
@@ -229,8 +229,6 @@ export interface Enemy {
   hitFlash: number;
 }
 
-export type BossType = 'observer' | 'titan' | 'wraith';
-
 export interface BossState {
   active: boolean;
   type: BossType;
@@ -246,12 +244,10 @@ export interface BossState {
   shootTimer: number;
   moveDir: number;
   hitFlash: number;
-  
-  // Habilidades Específicas
-  chargeFlash?: number; // Titan: aviso antes de investir
-  isCharging?: boolean; // Titan: estado de investida
-  teleportTimer?: number; // Wraith: cooldown do teleporte
-  opacity?: number; // Wraith: efeito visual
+  chargeFlash?: number;
+  isCharging?: boolean;
+  teleportTimer?: number;
+  opacity?: number;
 }
 
 export interface Scrap {

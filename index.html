@@ -5,23 +5,6 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover" />
     <title>Neon Wings Arcade</title>
-    
-    <!-- Meta Tags Sociais -->
-    <meta name="description" content="Um space shooter retro-futurista com elementos de RPG, upgrades e batalhas épicas contra chefes. Jogue agora no navegador!" />
-    <meta name="theme-color" content="#06b6d4" />
-    
-    <!-- Open Graph / Facebook / Discord -->
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://neonwings.vercel.app/" />
-    <meta property="og:title" content="Neon Wings Arcade" />
-    <meta property="og:description" content="Pilote, evolua e sobreviva. Space shooter roguelite com progressão persistente." />
-    <meta property="og:image" content="https://placehold.co/1200x630/050014/06b6d4?text=NEON+WINGS+ARCADE" />
-
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:title" content="Neon Wings Arcade" />
-    <meta property="twitter:description" content="Space shooter roguelite com progressão persistente." />
-
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
     <style>
@@ -77,6 +60,8 @@
           left: 50%;
         }
       }
+
+      /* Animação de Warp-In para inimigos (CSS Helper se necessário, mas faremos no Canvas) */
     </style>
   <script type="importmap">
 {
@@ -87,8 +72,7 @@
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.93.3",
     "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
     "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "vite": "https://esm.sh/vite@^7.3.1",
-    "path": "https://esm.sh/path@^0.12.7"
+    "vite": "https://esm.sh/vite@^7.3.1"
   }
 }
 </script>

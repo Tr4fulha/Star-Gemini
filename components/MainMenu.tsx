@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { Edit2, Check, Settings, Trophy, ShoppingBag, BookOpen, Play, ScrollText, Crosshair, HelpCircle, X, Wifi, WifiOff } from 'lucide-react';
+import { Edit2, Check, Settings, Trophy, ShoppingBag, BookOpen, Play, ScrollText, Crosshair } from 'lucide-react';
 import { TRANSLATIONS, APP_VERSION } from '../constants';
 import { useGame } from '../context/GameContext';
 import { drawGrid, drawStars } from '../renderer/CanvasRenderer';
@@ -9,14 +10,13 @@ import { sfx, music } from '../audioService';
 export const MainMenu: React.FC = () => {
   const { setScreen, isOnline, playerData, updateName, startDailyChallenge, dailyConfig } = useGame();
   const [isEditing, setIsEditing] = useState(false);
-  const [showTutorial, setShowTutorial] = useState(false);
   const [tempName, setTempName] = useState(playerData.username || 'PILOT');
   const t = TRANSLATIONS[playerData.language];
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Efeito para iniciar música e background
   useEffect(() => {
+      // Iniciar Música do Menu
       music.playMenu();
 
       const canvas = canvasRef.current;
@@ -76,11 +76,6 @@ export const MainMenu: React.FC = () => {
       };
   }, []);
 
-  // Handler Global para desbloquear áudio em qualquer clique
-  const handleInteraction = () => {
-      sfx.resume();
-  };
-
   const handleSaveName = () => {
     if (tempName.trim()) {
       sfx.uiClick();
@@ -112,59 +107,10 @@ export const MainMenu: React.FC = () => {
   }
 
   return (
-    <div 
-        className="w-full h-full bg-[#050014] overflow-y-auto custom-scrollbar relative flex flex-col items-center justify-center p-4"
-        onClick={handleInteraction} // Importante: Qualquer clique na tela tenta ativar o áudio
-    >
+    <div className="w-full h-full bg-[#050014] overflow-y-auto custom-scrollbar relative flex flex-col items-center justify-center p-4">
       {/* Fundo Canvas Dinâmico */}
       <canvas ref={canvasRef} className="fixed inset-0 z-0 w-full h-full" />
       
-      {/* Modal de Tutorial */}
-      {showTutorial && (
-          <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-              <div className="w-full max-w-2xl bg-[#0a0610] border border-cyan-500/50 rounded-xl relative shadow-2xl flex flex-col max-h-[90vh]">
-                  <button onClick={() => setShowTutorial(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white"><X size={24}/></button>
-                  
-                  <div className="p-8 overflow-y-auto custom-scrollbar">
-                      <h2 className="text-3xl font-display font-black text-white italic mb-8 uppercase text-center border-b border-white/10 pb-4">PILOT MANUAL</h2>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                          <div className="space-y-4">
-                              <h3 className="text-cyan-400 font-bold uppercase tracking-widest text-sm border-l-4 border-cyan-500 pl-3">CONTROLS</h3>
-                              <ul className="space-y-2 text-sm text-gray-300">
-                                  <li className="flex items-center gap-2"><span className="bg-white/10 px-2 py-1 rounded text-xs font-mono text-white">WASD / ARROWS</span> Movement</li>
-                                  <li className="flex items-center gap-2"><span className="bg-white/10 px-2 py-1 rounded text-xs font-mono text-white">SPACE</span> Auto-Fire (Hold)</li>
-                                  <li className="flex items-center gap-2"><span className="bg-white/10 px-2 py-1 rounded text-xs font-mono text-white">TOUCH</span> Left side Joystick, Right side Fire</li>
-                              </ul>
-                          </div>
-
-                          <div className="space-y-4">
-                              <h3 className="text-pink-400 font-bold uppercase tracking-widest text-sm border-l-4 border-pink-500 pl-3">OBJECTIVES</h3>
-                              <p className="text-sm text-gray-300 leading-relaxed">
-                                  Survive endless waves of enemies. Collect <span className="text-cyan-400 font-bold">SCRAP</span> to buy permanent upgrades in the Shop. Defeat Bosses every 5 waves to restore Energy.
-                              </p>
-                          </div>
-                      </div>
-
-                      <div className="mt-8 p-4 bg-white/5 rounded-lg border border-white/5">
-                          <h3 className="text-yellow-400 font-bold uppercase tracking-widest text-sm mb-2 flex items-center gap-2">
-                             <div className="w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div> ULTIMATE ABILITY
-                          </h3>
-                          <p className="text-xs text-gray-400">
-                              Each ship has a unique Ultimate. Kill enemies to charge your Energy bar to 100%. Press the Ultimate button (or 'E' key) to unleash chaos.
-                          </p>
-                      </div>
-                  </div>
-                  
-                  <div className="p-4 border-t border-white/10 flex justify-center">
-                      <button onClick={() => setShowTutorial(false)} className="bg-cyan-600 hover:bg-cyan-500 text-white px-8 py-3 font-bold uppercase tracking-widest rounded transition-colors w-full md:w-auto">
-                          READY TO FLY
-                      </button>
-                  </div>
-              </div>
-          </div>
-      )}
-
       {/* Container Principal */}
       <div className="z-10 w-full max-w-[1200px] flex flex-col landscape:flex-row items-center landscape:items-stretch justify-center gap-4 md:gap-12">
         
@@ -178,12 +124,6 @@ export const MainMenu: React.FC = () => {
             </div>
 
             <div className="w-full bg-[#0a0610]/95 border border-gray-800 rounded-xl p-5 md:p-8 shadow-2xl backdrop-blur-md relative overflow-hidden">
-                <div className="absolute top-4 right-4">
-                    <button onClick={() => setShowTutorial(true)} className="text-gray-600 hover:text-white transition-colors">
-                        <HelpCircle size={20} />
-                    </button>
-                </div>
-
                 <div className="flex items-center gap-5 mb-6">
                     <div className="w-20 h-20 md:w-24 md:h-24 bg-gradient-to-b from-cyan-500 to-blue-600 rounded-md shadow-lg flex items-center justify-center relative shrink-0">
                         <span className="font-display font-black text-4xl text-white drop-shadow-md z-10">{playerData.level}</span>
@@ -262,20 +202,15 @@ export const MainMenu: React.FC = () => {
 
       </div>
       
-      {/* Rodapé com status */}
-      <div className="fixed bottom-4 right-6 flex items-center gap-4 text-[9px] font-display pointer-events-none select-none italic tracking-widest text-gray-500">
-          <span>SYS_VER: {APP_VERSION}</span>
-          <span className="flex items-center gap-1">
-              {isOnline ? <Wifi size={10} className="text-green-500"/> : <WifiOff size={10} className="text-red-500"/>}
-              {isOnline ? 'UPLINK ACTIVE' : 'OFFLINE MODE'}
-          </span>
+      <div className="fixed bottom-4 right-6 text-cyan-500/20 text-[9px] font-display pointer-events-none select-none italic tracking-widest">
+          SYS_VER: {APP_VERSION} // ONLINE_STATUS: {isOnline ? 'ACTIVE' : 'OFFLINE'}
       </div>
     </div>
   );
 };
 
 const SecondaryBtn = ({ icon, label, onClick, color, disabled }: any) => (
-    <button onClick={(e) => { e.stopPropagation(); sfx.uiClick(); onClick(); }} disabled={disabled} className={`h-full bg-[#0a0610]/90 border ${color} rounded-lg flex flex-col items-center justify-center gap-1 hover:bg-white/5 active:scale-90 transition-all ${disabled ? 'opacity-30 grayscale' : 'hover:border-opacity-100'}`}>
+    <button onClick={() => { sfx.uiClick(); onClick(); }} disabled={disabled} className={`h-full bg-[#0a0610]/90 border ${color} rounded-lg flex flex-col items-center justify-center gap-1 hover:bg-white/5 active:scale-90 transition-all ${disabled ? 'opacity-30 grayscale' : 'hover:border-opacity-100'}`}>
         <div className="shrink-0">{icon}</div>
         <span className="text-[7px] md:text-[10px] font-bold tracking-widest uppercase truncate w-full px-1 text-center">{label}</span>
     </button>

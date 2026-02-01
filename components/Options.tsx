@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { Language } from '../types';
 import { TRANSLATIONS } from '../constants';
-import { Maximize, Minimize, LayoutTemplate, Volume2, Globe, Joystick, Speaker, Activity, PlayCircle, AlertTriangle, CheckCircle, Play } from 'lucide-react';
+import { Maximize, Minimize, LayoutTemplate, Volume2, Globe, Joystick, Speaker, Activity } from 'lucide-react';
 import { useGame } from '../context/GameContext';
-import { sfx, getDebugStatus, AudioStatus } from '../audioService';
+import { sfx } from '../audioService';
 
 type Tab = 'audio' | 'lang' | 'controls';
 
@@ -13,39 +14,36 @@ export const Options: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('audio');
   const [isFullscreen, setIsFullscreen] = useState(!!document.fullscreenElement);
   const [audioSource, setAudioSource] = useState<'synth' | 'pack'>('synth');
-  
-  // Debug State
-  const [debugList, setDebugList] = useState<AudioStatus[]>([]);
 
   useEffect(() => {
     const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', handleFsChange);
     
-    // Checar status do áudio e carregar lista de debug
+    // Checar status do áudio
     setAudioSource(sfx.isPackLoaded() ? 'pack' : 'synth');
-    
-    const updateDebug = () => {
-        const status = getDebugStatus();
-        setDebugList(Object.values(status));
-    };
-    updateDebug();
-    // Atualiza a cada 2s caso ainda esteja carregando
-    const interval = setInterval(updateDebug, 2000);
 
-    return () => {
-        document.removeEventListener('fullscreenchange', handleFsChange);
-        clearInterval(interval);
-    }
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
   }, []);
 
   const toggleFullscreen = () => {
     sfx.uiClick();
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(err => {
+      document.documentElement.requestFullscreen().then(() => {
+          if (screen.orientation && 'lock' in screen.orientation) {
+              // @ts-ignore
+              screen.orientation.lock('landscape').catch((e) => {
+                  console.log("Landscape lock not supported or blocked: ", e);
+              });
+          }
+      }).catch(err => {
         console.warn(`Error attempting to enable fullscreen: ${err.message}`);
       });
     } else {
-      document.exitFullscreen();
+      document.exitFullscreen().then(() => {
+          if (screen.orientation && 'unlock' in screen.orientation) {
+              screen.orientation.unlock();
+          }
+      });
     }
   };
 
@@ -108,43 +106,16 @@ export const Options: React.FC = () => {
                                     </p>
                                 </div>
                             </div>
+                            {audioSource === 'synth' && (
+                                <p className="text-[9px] text-gray-600 w-32 text-right leading-tight">
+                                    Files not found in /public/sounds. Using procedural audio.
+                                </p>
+                            )}
                         </div>
 
                         <VolumeSlider label={t.vol_master} value={playerData.audioSettings.masterVolume} onChange={(val) => handleAudioChange('masterVolume', val)} />
                         <VolumeSlider label={t.vol_music} value={playerData.audioSettings.musicVolume} onChange={(val) => handleAudioChange('musicVolume', val)} />
                         <VolumeSlider label={t.vol_sfx} value={playerData.audioSettings.sfxVolume} onChange={(val) => handleAudioChange('sfxVolume', val)} />
-
-                        {/* DEBUGGER PANEL */}
-                        <div className="mt-8 border-t border-gray-800 pt-6">
-                            <h3 className="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4">SOUND DEBUGGER</h3>
-                            <div className="grid grid-cols-1 gap-2 text-xs font-mono">
-                                {debugList.map((item) => (
-                                    <div key={item.key} className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5 hover:bg-white/5">
-                                        <div className="flex items-center gap-3 overflow-hidden">
-                                            <button 
-                                                onClick={() => sfx.playTest(item.key)}
-                                                className="p-1 bg-cyan-900/50 hover:bg-cyan-500 hover:text-black rounded transition-colors text-cyan-400"
-                                                title="Play Test"
-                                            >
-                                                <Play size={12} />
-                                            </button>
-                                            <span className="text-gray-300 font-bold uppercase w-24">{item.key}</span>
-                                            
-                                            {/* Status Badge */}
-                                            {item.status === 'loaded' && <span className="text-green-500 flex items-center gap-1"><CheckCircle size={10}/> OK ({Math.round((item.size||0)/1024)}kb)</span>}
-                                            {item.status === 'error' && <span className="text-red-500 flex items-center gap-1"><AlertTriangle size={10}/> ERR: {item.errorMsg}</span>}
-                                            {item.status === 'pending' && <span className="text-yellow-500 animate-pulse">LOADING...</span>}
-                                        </div>
-                                        <span className="text-gray-600 truncate max-w-[100px] text-[9px]">{item.url}</span>
-                                    </div>
-                                ))}
-                            </div>
-                            <p className="text-[9px] text-gray-500 mt-2">
-                                * Se o status for ERROR, verifique se o arquivo existe na pasta <code>public/sounds</code> e se o nome está exato.
-                                <br/>
-                                * Se o tamanho for ~130 bytes, o Git LFS ainda está bloqueando o arquivo.
-                            </p>
-                        </div>
                     </div>
                 )}
 
@@ -191,15 +162,9 @@ export const Options: React.FC = () => {
                                 </div>
                                 <span className="text-xs font-bold opacity-60 uppercase">{isFullscreen ? 'ON' : 'OFF'}</span>
                             </button>
-                        </section>
-
-                         <section className="space-y-4 pt-8 border-t border-white/10">
-                            <button 
-                                onClick={() => { sfx.uiClick(); setScreen('tutorial'); }}
-                                className="w-full py-4 bg-gray-900 hover:bg-cyan-900/30 text-gray-400 hover:text-cyan-400 border border-gray-700 hover:border-cyan-500 transition-all uppercase font-bold tracking-widest flex items-center justify-center gap-2"
-                            >
-                                <PlayCircle size={16} /> {t.replay_tutorial}
-                            </button>
+                            <p className="text-[10px] text-gray-500 italic">
+                                * On mobile, fullscreen automatically attempts to lock orientation to landscape.
+                            </p>
                         </section>
                     </div>
                 )}

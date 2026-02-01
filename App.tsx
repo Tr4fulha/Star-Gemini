@@ -11,8 +11,6 @@ import { Options } from './components/Options';
 import { Splash } from './components/Splash';
 import { Changelog } from './components/Changelog';
 import { HUDEditor } from './components/HUDEditor';
-import { Tutorial } from './components/Tutorial';
-import { NameInput } from './components/NameInput';
 
 const GameLayout = () => {
   const { screen, loading } = useGame();
@@ -25,8 +23,6 @@ const GameLayout = () => {
 
   switch(screen) {
       case 'splash': return <Splash />;
-      case 'name-input': return <NameInput />;
-      case 'tutorial': return <Tutorial />;
       case 'changelog': return <Changelog />;
       case 'menu': return <MainMenu />;
       case 'shop': return <Shop />;

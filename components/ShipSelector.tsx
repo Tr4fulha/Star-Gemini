@@ -1,123 +1,50 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { SHIPS, TRANSLATIONS, MODULES } from '../constants';
 import { Lock, Cpu, X } from 'lucide-react';
 import { useGame } from '../context/GameContext';
 import { sfx } from '../audioService';
-import { Star } from '../types';
 
 export const ShipSelector: React.FC = () => {
   const { launchGame, goToMenu, playerData, equipModule, unequipModule } = useGame();
   const [selectedId, setSelectedId] = useState<string>('core');
   const [isEquippingSlot, setIsEquippingSlot] = useState<number | null>(null);
-  const [isLaunching, setIsLaunching] = useState(false);
-  
-  const warpCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const selectedShip = SHIPS.find(s => s.id === selectedId) || SHIPS[0];
   const maxWave = playerData.maxWave || 0;
   const isLocked = maxWave < selectedShip.unlockWave;
 
+  // Maestria
   const mastery = playerData.shipMastery[selectedId] || { xp: 0, level: 1 };
   const xpToNext = mastery.level * 500;
   const xpPercent = Math.min(100, (mastery.xp / xpToNext) * 100);
 
+  // Módulos
   const equippedModules = playerData.modules.equipped[selectedId] || [];
   const inventoryModules = playerData.modules.inventory;
 
+  // Access translations
   const t = TRANSLATIONS[playerData.language];
   const getT = (key: string) => key.split('.').reduce((obj, i) => obj?.[i], t) || key;
 
   const handleLaunch = () => {
       sfx.uiClick();
-      sfx.ultimateUse(); // Som de power-up para a decolagem
-      setIsLaunching(true);
-      
-      // Delay para a animação de warp antes de mudar a tela
-      setTimeout(() => {
-          launchGame(selectedShip);
-      }, 1500); // 1.5s de animação
+      launchGame(selectedShip);
   }
 
-  // Efeito de Warp Animation
-  useEffect(() => {
-    if (!isLaunching || !warpCanvasRef.current) return;
-    
-    const canvas = warpCanvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    const stars: Star[] = [];
-    for(let i=0; i<150; i++) {
-        stars.push({
-            x: Math.random() * canvas.width,
-            y: Math.random() * canvas.height,
-            speed: 10 + Math.random() * 20,
-            size: 1 + Math.random() * 2,
-            opacity: 1
-        });
-    }
-
-    let speedMult = 1.0;
-    let fade = 0;
-    let animId = 0;
-
-    const loop = () => {
-        ctx.fillStyle = '#050014';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        speedMult *= 1.1; // Aceleração exponencial
-        
-        ctx.fillStyle = '#fff';
-        stars.forEach(s => {
-            s.y += s.speed * speedMult;
-            if (s.y > canvas.height) {
-                s.y = 0;
-                s.x = Math.random() * canvas.width;
-            }
-            
-            // Desenha traço em vez de ponto
-            const length = s.speed * speedMult * 0.2;
-            ctx.beginPath();
-            ctx.strokeStyle = `rgba(255, 255, 255, ${Math.min(1, speedMult * 0.05)})`;
-            ctx.lineWidth = s.size;
-            ctx.moveTo(s.x, s.y);
-            ctx.lineTo(s.x, s.y - length);
-            ctx.stroke();
-        });
-
-        // Flash Branco no final
-        if (speedMult > 50) {
-            fade += 0.05;
-            ctx.fillStyle = `rgba(255, 255, 255, ${fade})`;
-            ctx.fillRect(0,0, canvas.width, canvas.height);
-        }
-
-        animId = requestAnimationFrame(loop);
-    };
-    
-    animId = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animId);
-  }, [isLaunching]);
-
   const handleSelect = (id: string) => {
-      if (isLaunching) return;
       sfx.uiClick();
       setSelectedId(id);
       setIsEquippingSlot(null);
   }
 
   const handleBack = () => {
-      if (isLaunching) return;
       sfx.uiClick();
       goToMenu();
   }
 
   const handleEquip = (moduleId: string) => {
-      if (isEquippingSlot !== null && !isLaunching) {
+      if (isEquippingSlot !== null) {
           sfx.uiClick();
           equipModule(selectedId, moduleId, isEquippingSlot);
           setIsEquippingSlot(null);
@@ -125,7 +52,6 @@ export const ShipSelector: React.FC = () => {
   }
 
   const handleUnequip = (slotIdx: number) => {
-      if (isLaunching) return;
       sfx.uiClick();
       unequipModule(selectedId, slotIdx);
   }
@@ -134,14 +60,8 @@ export const ShipSelector: React.FC = () => {
     <div className="w-full h-full bg-[#050014] flex flex-col md:justify-center p-0 md:p-8 relative overflow-hidden">
       <div className="absolute inset-0 retro-grid opacity-20 pointer-events-none"></div>
 
-      {/* Canvas de Warp Overlay */}
-      <canvas 
-        ref={warpCanvasRef} 
-        className={`fixed inset-0 z-50 pointer-events-none transition-opacity duration-300 ${isLaunching ? 'opacity-100' : 'opacity-0'}`} 
-      />
-
       {/* Main Container */}
-      <div className={`z-10 w-full max-w-6xl mx-auto flex flex-col md:grid md:grid-cols-12 gap-0 md:gap-8 h-full md:h-[90vh] bg-[#050014] md:bg-transparent transition-opacity duration-500 ${isLaunching ? 'opacity-0' : 'opacity-100'}`}>
+      <div className="z-10 w-full max-w-6xl mx-auto flex flex-col md:grid md:grid-cols-12 gap-0 md:gap-8 h-full md:h-[90vh] bg-[#050014] md:bg-transparent">
         
         {/* HEADER (Mobile Only) */}
         <div className="md:hidden p-4 border-b border-gray-800 bg-[#0a0610]">
@@ -263,7 +183,7 @@ export const ShipSelector: React.FC = () => {
 
                  <button 
                     onClick={handleLaunch}
-                    disabled={isLocked || isLaunching}
+                    disabled={isLocked}
                     className={`
                         w-full py-4 md:py-6 font-display font-black text-xl md:text-2xl tracking-widest transition-all relative overflow-hidden group
                         ${isLocked 
@@ -272,7 +192,7 @@ export const ShipSelector: React.FC = () => {
                     `}
                  >
                     <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, #000 3px)' }}></div>
-                    <span className="relative z-10">{isLocked ? 'LOCKED' : (isLaunching ? 'INITIATING WARP...' : t.initiate_launch)}</span>
+                    <span className="relative z-10">{isLocked ? 'LOCKED' : t.initiate_launch}</span>
                  </button>
             </div>
         </div>

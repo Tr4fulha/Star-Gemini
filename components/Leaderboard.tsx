@@ -20,12 +20,9 @@ export const Leaderboard: React.FC = () => {
   useEffect(() => {
     const fetchScores = async () => {
       setLoading(true);
-      // Busca em paralelo, se um falhar o outro ainda pode funcionar
-      const [g, d] = await Promise.allSettled([getLeaderboard(), getDailyLeaderboard()]);
-      
-      if (g.status === 'fulfilled') setGlobalScores(g.value);
-      if (d.status === 'fulfilled') setDailyScores(d.value);
-      
+      const [g, d] = await Promise.all([getLeaderboard(), getDailyLeaderboard()]);
+      setGlobalScores(g);
+      setDailyScores(d);
       setLoading(false);
     };
     fetchScores();
@@ -49,7 +46,7 @@ export const Leaderboard: React.FC = () => {
             <div className="p-8 border-b border-white/5 bg-gradient-to-r from-purple-950/20 to-transparent">
                 <Trophy className="text-purple-400 mb-4" size={48} />
                 <h2 className="text-3xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500 font-display tracking-wide uppercase leading-none">
-                    {t.hall_of_fame}
+                    HALL OF<br/>FAME
                 </h2>
             </div>
 

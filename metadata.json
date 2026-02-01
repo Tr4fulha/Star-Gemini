@@ -1,5 +1,5 @@
 {
-  "name": "Neon Wings Arcade",
-  "description": "Space shooter roguelite com backend Supabase, upgrades e batalhas contra chefes.",
+  "name": "Neon wings Arcade",
+  "description": "A retro-futuristic space shooter with RPG elements, upgrade shop, and backend integration.",
   "requestFramePermissions": []
 }
